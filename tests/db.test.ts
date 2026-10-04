@@ -21,10 +21,10 @@ afterEach(() => {
 });
 
 describe("openDb", () => {
-  test("migrates a new file to schema user_version 2", () => {
+  test("migrates a new file to schema user_version 3", () => {
     dir = mkdtempSync(join(tmpdir(), "ledger-db-"));
     const db = open();
-    expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(2);
+    expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(3);
     expect(db.query<{ foreign_keys: number }, []>("PRAGMA foreign_keys").get()?.foreign_keys).toBe(1);
   });
 
@@ -33,10 +33,12 @@ describe("openDb", () => {
     const path = join(dir, "ledger.sqlite");
     const legacy = new Database(path);
     legacy.exec(`
-      CREATE TABLE assets(id TEXT PRIMARY KEY, name TEXT NOT NULL, opening_balance INTEGER NOT NULL);
-      CREATE TABLE transactions(id TEXT PRIMARY KEY, asset_id TEXT REFERENCES assets(id), amount INTEGER);
-      INSERT INTO assets VALUES('legacy-asset','테스트계좌',12345);
-      INSERT INTO transactions VALUES('legacy-tx','legacy-asset',678);
+      CREATE TABLE assets(id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, opening_balance INTEGER NOT NULL,
+        linked_asset_id TEXT REFERENCES assets(id), external_ref TEXT UNIQUE);
+      CREATE TABLE transactions(id TEXT PRIMARY KEY, type TEXT NOT NULL, asset_id TEXT REFERENCES assets(id),
+        to_asset_id TEXT REFERENCES assets(id), amount INTEGER);
+      INSERT INTO assets VALUES('legacy-asset','테스트계좌','bank',12345,NULL,'kakaobank:2222');
+      INSERT INTO transactions VALUES('legacy-tx','expense','legacy-asset',NULL,678);
       PRAGMA user_version=1;
     `);
     const transactions = legacy.query("SELECT * FROM transactions").all();
@@ -45,14 +47,75 @@ describe("openDb", () => {
       const db = openDb(path);
       try {
         expect(db.query("SELECT * FROM assets").all()).toEqual([
-          { id: "legacy-asset", name: "테스트계좌", opening_balance: 12345, opening_date: null },
+          {
+            id: "legacy-asset",
+            name: "테스트계좌",
+            kind: "bank",
+            opening_balance: 12345,
+            linked_asset_id: null,
+            external_ref: "kakaobank:2222",
+            opening_date: null,
+          },
         ]);
         expect(db.query("SELECT * FROM transactions").all()).toEqual(transactions);
-        expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(2);
+        expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(3);
       } finally {
         db.close();
       }
     }
+  });
+
+  test("folds importer check card assets into their linked account at schema 3", () => {
+    dir = mkdtempSync(join(tmpdir(), "ledger-db-"));
+    const path = join(dir, "ledger.sqlite");
+    const v2 = openDb(path);
+    const now = "2026-10-01T09:00:00+09:00";
+    const asset = v2.query(
+      "INSERT INTO assets(id,name,kind,external_ref,linked_asset_id,created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+    );
+    asset.run("bank", "테스트통장", "bank", "kakaobank:2222", null, now, now);
+    asset.run("card", "테스트체크카드", "check_card", "kakaobank-checkcard:2222", "bank", now, now);
+    asset.run("manual-card", "샘플체크", "check_card", null, "bank", now, now);
+    const tx = v2.query(
+      "INSERT INTO transactions(id,type,occurred_at,amount,asset_id,deleted_at,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)",
+    );
+    tx.run("card-pay", "expense", now, 4500, "card", null, now, now);
+    tx.run("card-deleted", "expense", now, 1000, "card", now, now, now);
+    tx.run("manual-pay", "expense", now, 700, "manual-card", null, now, now);
+    tx.run("deposit", "income", now, 9000, "bank", null, now, now);
+    const payload = JSON.stringify({ type: "expense", amount: 4500, asset_id: "card", merchant: "샘플카페" });
+    v2.query("INSERT INTO templates(id,name,payload,created_at,updated_at) VALUES('tpl','샘플',?,?,?)").run(
+      payload,
+      now,
+      now,
+    );
+    v2.query(
+      "INSERT INTO recurring_rules(id,template,freq,start_date,created_at,updated_at) VALUES('rule',?,'monthly','2026-10-01',?,?)",
+    ).run(payload, now, now);
+    v2.query("UPDATE settings SET value=? WHERE key='default_asset_id'").run(JSON.stringify("card"));
+    v2.exec("PRAGMA user_version=2");
+    v2.close();
+
+    const db = open();
+    expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(3);
+    expect(db.query("SELECT id FROM assets WHERE id IN ('bank','card','manual-card') ORDER BY id").all()).toEqual([
+      { id: "bank" },
+      { id: "manual-card" },
+    ]);
+    expect(db.query("SELECT id,asset_id FROM transactions ORDER BY id").all()).toEqual([
+      { id: "card-deleted", asset_id: "bank" },
+      { id: "card-pay", asset_id: "bank" },
+      { id: "deposit", asset_id: "bank" },
+      { id: "manual-pay", asset_id: "manual-card" },
+    ]);
+    const moved = { type: "expense", amount: 4500, asset_id: "bank", merchant: "샘플카페" };
+    expect(JSON.parse(db.query<{ payload: string }, []>("SELECT payload FROM templates").get()?.payload ?? "")).toEqual(
+      moved,
+    );
+    expect(
+      JSON.parse(db.query<{ template: string }, []>("SELECT template FROM recurring_rules").get()?.template ?? ""),
+    ).toEqual(moved);
+    expect(db.query("SELECT value FROM settings WHERE key='default_asset_id'").get()).toEqual({ value: '"bank"' });
   });
 
   test("seeds categories, the cash asset and settings once even when opened twice", () => {

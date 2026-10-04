@@ -58,10 +58,6 @@ export function mapEntry(db: Database, entry: Entry, previousBalance: number | n
     (entry.balance ?? 0) - signedAmount,
     null,
   );
-  const card = /카드|해외결제/.test(entry.kind);
-  const paymentAsset = card
-    ? asset(db, `kakaobank-checkcard:${entry.account}`, "카카오뱅크 체크카드", "check_card", 0, bank)
-    : bank;
   const merchant = entry.counterparty.replace(/\([^()]*$/, "").trim();
   const ownerSetting = db.query<{ value: string }, []>("SELECT value FROM settings WHERE key='owner_name'").get();
   const owner: string = ownerSetting ? JSON.parse(ownerSetting.value) : "";
@@ -70,7 +66,7 @@ export function mapEntry(db: Database, entry: Entry, previousBalance: number | n
     merchantKey(entry.counterparty).includes(merchantKey(owner)) &&
     /이체|입금/.test(entry.kind);
   let type: TransactionInput["type"] = refund || entry.amount <= 0 ? "expense" : "income";
-  let assetId = paymentAsset;
+  let assetId = bank;
   let toAssetId: string | null = null;
   if (ownTransfer) {
     const other = asset(db, "self:other", "내 다른 계좌", "other", 0, null);

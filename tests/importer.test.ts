@@ -231,7 +231,7 @@ describe("KakaoBank importer", () => {
     expect(transaction(1)).toMatchObject({ type: "income", to_asset_id: null });
   });
 
-  test("sets opening balance and newest reported state for a bank linked check card", async () => {
+  test("records check card payments on the bank account with its opening balance and newest reported state", async () => {
     setEntries([entry(), entry({ id: 2, at: at(1), amount: 1000, kind: "입금", balance: 96500 })]);
     await importer.run();
     const bank = db
@@ -253,10 +253,8 @@ describe("KakaoBank importer", () => {
       .get();
     expect(computed?.balance).toBe(96500);
     expect(state("reported:kakaobank:2222")).toEqual({ balance: 96500, at: at(1) });
-    const card = db
-      .query<{ linked_asset_id: string }, []>("SELECT linked_asset_id FROM assets WHERE kind='check_card'")
-      .get();
-    expect(card?.linked_asset_id).toBe(bank?.id);
+    expect(db.query<{ n: number }, []>("SELECT count(*) AS n FROM assets WHERE kind='check_card'").get()?.n).toBe(0);
+    expect(transaction()).toMatchObject({ type: "expense", asset_id: bank?.id });
   });
 
   test("shares an active run promise and commits only once", async () => {

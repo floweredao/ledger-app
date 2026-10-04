@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 import { nowKst } from "../shared/dates";
 import { DEFAULT_SETTINGS } from "../shared/schema";
 
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 const MIGRATION_V1 = `
 CREATE TABLE assets(
@@ -161,6 +161,42 @@ function userVersion(db: Database): number {
   return row?.user_version ?? 0;
 }
 
+/** The importer now books KakaoBank card payments on the account itself, so its old check-card assets fold into that account. */
+function foldImportedCheckCards(db: Database): void {
+  const cards = db
+    .query<{ id: string; bank: string }, []>(
+      `SELECT c.id, c.linked_asset_id AS bank FROM assets c
+       WHERE c.kind='check_card' AND c.external_ref LIKE 'kakaobank-checkcard:%' AND c.linked_asset_id IS NOT NULL
+         AND NOT EXISTS (SELECT 1 FROM transactions t WHERE t.type='transfer'
+           AND ((t.asset_id=c.id AND t.to_asset_id=c.linked_asset_id) OR (t.asset_id=c.linked_asset_id AND t.to_asset_id=c.id)))`,
+    )
+    .all();
+  const now = nowKst();
+  for (const { id, bank } of cards) {
+    db.query("UPDATE transactions SET asset_id=?, updated_at=? WHERE asset_id=?").run(bank, now, id);
+    db.query("UPDATE transactions SET to_asset_id=?, updated_at=? WHERE to_asset_id=?").run(bank, now, id);
+    for (const [table, column] of [
+      ["templates", "payload"],
+      ["recurring_rules", "template"],
+    ] as const) {
+      for (const row of db
+        .query<{ id: string; json: string }, []>(`SELECT id, ${column} AS json FROM ${table}`)
+        .all()) {
+        const value: Record<string, unknown> = JSON.parse(row.json);
+        const keys = ["asset_id", "to_asset_id"].filter((key) => value[key] === id);
+        if (keys.length === 0) continue;
+        for (const key of keys) value[key] = bank;
+        db.query(`UPDATE ${table} SET ${column}=? WHERE id=?`).run(JSON.stringify(value), row.id);
+      }
+    }
+    db.query("UPDATE settings SET value=? WHERE key='default_asset_id' AND value=?").run(
+      JSON.stringify(bank),
+      JSON.stringify(id),
+    );
+    db.query("DELETE FROM assets WHERE id=?").run(id);
+  }
+}
+
 function migrate(db: Database): void {
   if (userVersion(db) >= SCHEMA_VERSION) return;
   db.transaction(() => {
@@ -169,6 +205,7 @@ function migrate(db: Database): void {
       seed(db);
     }
     if (userVersion(db) < 2) db.exec("ALTER TABLE assets ADD COLUMN opening_date TEXT");
+    if (userVersion(db) < 3) foldImportedCheckCards(db);
     db.exec(`PRAGMA user_version=${SCHEMA_VERSION}`);
   }).immediate();
 }

@@ -269,6 +269,8 @@ TemplatePayload는 `{type, amount?, is_refund?, asset_id?, to_asset_id?, categor
 
 ## 동기화(카카오뱅크)
 
+카카오뱅크 내역은 계좌마다 `카카오뱅크 입출금 (끝자리)` 자산 하나로 들어와요. 체크카드 결제와 해외결제도 별도 카드 자산을 만들지 않고 그 계좌에 기록해요. 스키마 3 마이그레이션은 이전 가져오기가 만든 체크카드 자산(`external_ref`가 `kakaobank-checkcard:`로 시작)의 거래, 즐겨찾기·반복 기록의 자산 참조, 기본 자산 설정을 연결 계좌로 옮기고 그 카드 자산을 지워요. 체크카드 잔액은 원래 연결 계좌로 계산했으므로 잔액과 통계는 바뀌지 않아요. 직접 만든 체크카드와, 카드와 그 연결 계좌 사이의 이체가 있는 카드는 그대로 두어요.
+
 ### `GET /sync/status`
 응답 `{last_run_at, last_result, last_error, next_run_at}`, 기록이 없으면 각각 null. `last_result`는 마지막 실행 결과(아래 형태), `last_error`는 `"import_failed"` 또는 null이에요.
 
