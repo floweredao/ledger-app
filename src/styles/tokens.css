@@ -1,0 +1,240 @@
+/*
+  ledger-app design tokens — the only place a visual value may be born.
+  Contract: DESIGN.md (Color, Typography, Spacing & Radius, Elevation, Motion).
+
+  Theme resolution
+    :root                                   light (default)
+    @media (prefers-color-scheme: dark)
+      :root:not([data-theme="light"])       dark when the system is dark and no explicit light override
+    [data-theme="dark"]                     dark when the user chose dark in 설정
+  The two dark blocks are identical by contract (scripts may diff them); edit both or neither.
+
+  Every text token clears 4.5:1 on --bg, --surface and --surface-2 in its theme.
+  Every --cat-N clears 3:1 for a white glyph (--cat-glyph) in its theme.
+  Colours were generated in OKLCH (categories: L 0.56 / 0.62, C 0.15) and verified with WCAG 2 contrast.
+*/
+
+:root {
+  --scheme: light;
+
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --surface-2: #edf0f4;
+  --text: #141a24;
+  --text-2: #48515b;
+  --text-3: #606a74;
+  --border: rgb(20 26 36 / 10%);
+  --border-strong: rgb(20 26 36 / 20%);
+  --border-input: #7d8691;
+  --wash: rgb(20 26 36 / 6%);
+  --wash-strong: rgb(20 26 36 / 12%);
+  --scrim: rgb(20 26 36 / 40%);
+
+  --accent: #2769c6;
+  --accent-contrast: #ffffff;
+  --accent-soft: rgb(39 105 198 / 10%);
+
+  --income: var(--accent);
+  --expense: var(--text);
+  --refund: #03765e;
+  --danger: #c52b30;
+  --danger-soft: rgb(197 43 48 / 10%);
+  --warning: #955b02;
+  --warning-soft: rgb(149 91 2 / 10%);
+
+  --cat-1: #bc484f; /* red */
+  --cat-2: #b95115; /* orange */
+  --cat-3: #9c6902; /* gold */
+  --cat-4: #936b4a; /* brown */
+  --cat-5: #3d892a; /* green */
+  --cat-6: #04896a; /* emerald */
+  --cat-7: #0a8393; /* teal */
+  --cat-8: #037ac0; /* blue */
+  --cat-9: #6566c9; /* indigo */
+  --cat-10: #8f57b5; /* violet */
+  --cat-11: #ab4b90; /* magenta */
+  --cat-12: #687686; /* slate */
+  --cat-glyph: #ffffff;
+
+  --toast-bg: var(--text);
+  --toast-text: var(--bg);
+  --toast-action: #70a6f5;
+
+  --shadow-1: 0 1px 2px rgb(20 26 36 / 6%);
+  --shadow-2: 0 8px 24px rgb(20 26 36 / 12%), 0 2px 6px rgb(20 26 36 / 6%);
+  --shadow-sheet: 0 -8px 32px rgb(20 26 36 / 16%);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", Pretendard, "Noto Sans KR", sans-serif;
+  --text-xs: 0.75rem; /* 12px  meta, chip, tab label */
+  --text-sm: 0.875rem; /* 14px  secondary text, list sub-line */
+  --text-md: 1rem; /* 16px  body, inputs, list title */
+  --text-lg: 1.125rem; /* 18px  section / dialog title */
+  --text-xl: 1.375rem; /* 22px  screen title */
+  --text-display: 2rem; /* 32px  the one display number per screen */
+  --leading-tight: 1.2;
+  --leading-snug: 1.35;
+  --leading-normal: 1.5;
+  --tracking-display: -0.02em;
+  --tracking-title: -0.01em;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Spacing: --space-N = N × 4px */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* Radius: pills for actions and chips, 16px for containers, 10px for fields and tiles */
+  --radius-pill: 999px;
+  --radius-card: 16px;
+  --radius-input: 10px;
+
+  --dur-fast: 120ms; /* press feedback, hover wash (< 150ms) */
+  --dur-base: 160ms; /* chip/segment select, dialog fade */
+  --dur-sheet: 240ms; /* sheet open */
+  --dur-sheet-out: 200ms; /* sheet close */
+  --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --tabbar-h: 56px;
+  --topbar-h: 52px;
+  --sidebar-w: 240px;
+  --content-max-w: 720px;
+  --content-wide-max-w: 1080px;
+  --dialog-max-w: 520px;
+  --hit-min: 44px;
+  --control-h: 44px;
+  --control-h-sm: 32px;
+  --row-h: 56px;
+  --key-h: 52px;
+  --icon-tile: 36px;
+  --z-sticky: 10;
+  --z-tabbar: 20;
+  --z-overlay: 30;
+  --z-toast: 40;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --scheme: dark;
+
+    --bg: #0f1115;
+    --surface: #161a21;
+    --surface-2: #1f242d;
+    --text: #eef1f5;
+    --text-2: #a8b2be;
+    --text-3: #86909b;
+    --border: rgb(255 255 255 / 10%);
+    --border-strong: rgb(255 255 255 / 18%);
+    --border-input: #6b7581;
+    --wash: rgb(255 255 255 / 8%);
+    --wash-strong: rgb(255 255 255 / 14%);
+    --scrim: rgb(0 0 0 / 65%);
+
+    --accent: #70a6f5;
+    --accent-contrast: #0f1115;
+    --accent-soft: rgb(112 166 245 / 15%);
+
+    --refund: #4ebb9d;
+    --danger: #f47a79;
+    --danger-soft: rgb(244 122 121 / 15%);
+    --warning: #e8ab3e;
+    --warning-soft: rgb(232 171 62 / 15%);
+
+    --cat-1: #d15b60;
+    --cat-2: #cd632d;
+    --cat-3: #b37903;
+    --cat-4: #a67c5b;
+    --cat-5: #4f9b3e;
+    --cat-6: #019d7b;
+    --cat-7: #0e97a9;
+    --cat-8: #168dd9;
+    --cat-9: #7679de;
+    --cat-10: #a269c9;
+    --cat-11: #bf5da2;
+    --cat-12: #798898;
+
+    --toast-action: #2769c6;
+
+    --shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow-2: 0 8px 24px rgb(0 0 0 / 50%), 0 2px 6px rgb(0 0 0 / 40%);
+    --shadow-sheet: 0 -8px 32px rgb(0 0 0 / 60%);
+  }
+}
+
+[data-theme="dark"] {
+  --scheme: dark;
+
+  --bg: #0f1115;
+  --surface: #161a21;
+  --surface-2: #1f242d;
+  --text: #eef1f5;
+  --text-2: #a8b2be;
+  --text-3: #86909b;
+  --border: rgb(255 255 255 / 10%);
+  --border-strong: rgb(255 255 255 / 18%);
+  --border-input: #6b7581;
+  --wash: rgb(255 255 255 / 8%);
+  --wash-strong: rgb(255 255 255 / 14%);
+  --scrim: rgb(0 0 0 / 65%);
+
+  --accent: #70a6f5;
+  --accent-contrast: #0f1115;
+  --accent-soft: rgb(112 166 245 / 15%);
+
+  --refund: #4ebb9d;
+  --danger: #f47a79;
+  --danger-soft: rgb(244 122 121 / 15%);
+  --warning: #e8ab3e;
+  --warning-soft: rgb(232 171 62 / 15%);
+
+  --cat-1: #d15b60;
+  --cat-2: #cd632d;
+  --cat-3: #b37903;
+  --cat-4: #a67c5b;
+  --cat-5: #4f9b3e;
+  --cat-6: #019d7b;
+  --cat-7: #0e97a9;
+  --cat-8: #168dd9;
+  --cat-9: #7679de;
+  --cat-10: #a269c9;
+  --cat-11: #bf5da2;
+  --cat-12: #798898;
+
+  --toast-action: #2769c6;
+
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-2: 0 8px 24px rgb(0 0 0 / 50%), 0 2px 6px rgb(0 0 0 / 40%);
+  --shadow-sheet: 0 -8px 32px rgb(0 0 0 / 60%);
+}
+
+/* Separate user preferences, resolved separately (see DESIGN.md Accessibility). */
+@media (prefers-contrast: more) {
+  :root,
+  :root:not([data-theme="light"]) {
+    --border: var(--border-strong);
+    --text-3: var(--text-2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-sheet: 0ms;
+    --dur-sheet-out: 0ms;
+  }
+}

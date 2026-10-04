@@ -1,0 +1,38 @@
+{
+  "name": "ledger-app",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "dev:server": "bun --watch server/index.ts",
+    "start": "bun server/index.ts",
+    "build": "vite build && bun scripts/build-sw.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "test:responsive": "bun tests/browser/responsive.mjs",
+    "lint": "biome check ."
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "hono": "^4.13.12",
+    "lucide-react": "^1.51.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@happy-dom/global-registrator": "^20.14.5",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@types/bun": "^1.4.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "fake-indexeddb": "^6.2.5",
+    "happy-dom": "^20.14.5",
+    "typescript": "^5.9.2",
+    "vite": "^8.3.2"
+  }
+}

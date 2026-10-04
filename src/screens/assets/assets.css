@@ -1,0 +1,123 @@
+.asset-screen {
+  display: grid;
+  gap: var(--space-6);
+}
+.asset-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.asset-header .screen-title {
+  flex: 1;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.asset-panel {
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  padding: var(--space-4);
+  margin: 0;
+}
+.asset-totals {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-3);
+}
+.asset-totals dd {
+  margin: var(--space-2) 0 0;
+  font-weight: var(--weight-semibold);
+  white-space: nowrap;
+}
+.asset-totals dt,
+.asset-meta,
+.asset-metrics dt {
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+.asset-section {
+  min-width: 0;
+}
+.asset-section-title {
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  margin: 0 0 var(--space-3);
+}
+.asset-list {
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+.asset-list > * + * {
+  border-top: 1px solid var(--border);
+}
+.asset-warning {
+  padding: var(--space-3) var(--space-4);
+  background: var(--warning-soft);
+  color: var(--warning);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+.asset-state {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-4);
+  padding-block: var(--space-6);
+  color: var(--text-2);
+}
+.asset-balance {
+  font-size: var(--text-display);
+  font-weight: var(--weight-semibold);
+  margin: var(--space-2) 0 0;
+}
+.asset-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+.asset-metrics dd {
+  margin: var(--space-2) 0 0;
+  overflow-wrap: anywhere;
+}
+.asset-performance {
+  grid-column: 1 / -1;
+}
+.asset-progress {
+  background: var(--surface-2);
+  height: var(--space-2);
+  border-radius: var(--radius-pill);
+  margin-block-start: var(--space-3);
+  overflow: hidden;
+}
+.asset-progress > div {
+  background: var(--accent);
+  height: 100%;
+}
+.asset-form {
+  display: grid;
+  gap: var(--space-4);
+}
+.asset-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+.asset-checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--hit-min);
+}
+.asset-checkbox input {
+  width: var(--space-5);
+  height: var(--space-5);
+}
+.asset-error {
+  color: var(--danger);
+}
+
+@media (min-width: 600px) {
+  .asset-totals {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

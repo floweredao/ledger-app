@@ -1,0 +1,176 @@
+.entry-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.entry-badges {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.entry-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.entry-label {
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.entry-hint {
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+.entry-amount-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+.entry-amount {
+  display: block;
+  width: 100%;
+  padding: var(--space-2) var(--space-1);
+  border-radius: var(--radius-input);
+  font-size: var(--text-display);
+  font-weight: var(--weight-bold);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.entry-amount[data-empty] {
+  color: var(--text-3);
+}
+
+.entry-amount:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-2);
+}
+
+.keypad[hidden] {
+  display: none;
+}
+
+.keypad-key {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--key-h);
+  border-radius: var(--radius-input);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  transition: background-color var(--dur-fast) ease;
+  touch-action: manipulation;
+}
+
+.keypad-key:active {
+  background: var(--wash-strong);
+}
+
+.keypad-key:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+  gap: var(--space-1);
+}
+
+.category-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  min-height: var(--hit-min);
+  padding: var(--space-2) var(--space-1);
+  border-radius: var(--radius-input);
+  color: var(--text-2);
+  font-size: var(--text-xs);
+  transition: background-color var(--dur-fast) ease;
+}
+
+.category-tile:hover {
+  background: var(--wash);
+}
+
+.category-tile[data-expanded] {
+  background: var(--wash);
+  color: var(--text);
+}
+
+.category-tile[aria-pressed="true"] {
+  background: var(--wash-strong);
+  color: var(--text);
+  font-weight: var(--weight-semibold);
+}
+
+.category-tile:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.category-tile-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.entry-datetime {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.entry-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--hit-min);
+  font-size: var(--text-sm);
+}
+
+.entry-toggle input {
+  width: 1.25rem;
+  height: 1.25rem;
+  accent-color: var(--accent);
+}
+
+.entry-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.entry-fieldset > legend.entry-label {
+  margin-bottom: var(--space-2);
+  padding: 0;
+}

@@ -1,0 +1,15 @@
+{
+  "name": "가계부",
+  "short_name": "가계부",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "lang": "ko",
+  "theme_color": "#f7f8fa",
+  "background_color": "#f7f8fa",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

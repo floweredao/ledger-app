@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>local.ledger-app</string>
+  <key>ProgramArguments</key>
+  <array><string>__BUN__</string><string>server.js</string></array>
+  <key>WorkingDirectory</key><string>__RT__</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>NODE_ENV</key><string>production</string>
+    <key>LEDGER_HOST</key><string>127.0.0.1</string>
+    <key>LEDGER_PORT</key><string>4340</string>
+    <key>LEDGER_DATA_DIR</key><string>__RT__/data</string>
+    <key>LEDGER_STATIC_DIR</key><string>__RT__/dist</string>
+    <key>LEDGER_MODULE</key><string>__MODULE__</string>
+    <key>LEDGER_WATCH_DIR</key><string>__WATCH__</string>
+    <key>LEDGER_TAILSCALE_HOST</key><string>__TS_HOST__:4340</string>
+    <key>LEDGER_TAILSCALE_LOGIN</key><string>__TS_LOGIN__</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>10</integer>
+  <key>StandardOutPath</key><string>__RT__/data/logs/server.log</string>
+  <key>StandardErrorPath</key><string>__RT__/data/logs/server-error.log</string>
+</dict>
+</plist>

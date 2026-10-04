@@ -1,0 +1,240 @@
+import { type MutableRefObject, useEffect, useId, useRef, useState } from "react";
+import { merchantKey } from "../../../shared/merchant";
+import { formatWon } from "../../../shared/money";
+import type { Asset, Category, MerchantRule, Template, Transaction, TransactionType } from "../../../shared/schema";
+import { api, isApiError, isNetworkError } from "../../api/client";
+import { invalidate } from "../../api/hooks";
+import { Field, Input } from "../../components/Field";
+import { Badge } from "../../components/ListRow";
+import { SegmentedControl } from "../../components/SegmentedControl";
+import { toast } from "../../components/Toast";
+import { AssetPicker } from "./AssetPicker";
+import { CategoryPicker } from "./CategoryPicker";
+import { DateTimeField } from "./DateTimeField";
+import { FavoritesRow } from "./FavoritesRow";
+import {
+  applyTemplate,
+  type EntryDraft,
+  fromTransaction,
+  hasErrors,
+  type KeypadKey,
+  pressKey,
+  SOURCE_LABEL,
+  switchType,
+  TYPE_LABEL,
+  templateFrom,
+  toCreate,
+  toPatch,
+  validate,
+} from "./form";
+import { Keypad } from "./Keypad";
+import { useEntryKeyboard } from "./useEntryKeyboard";
+import "./entry.css";
+
+export type EntryData = {
+  readonly categories: readonly Category[];
+  readonly assets: readonly Asset[];
+  readonly templates: readonly Template[];
+  readonly rules: readonly MerchantRule[];
+  /** Newest first; feeds recent categories, last asset and merchant suggestions. */
+  readonly recent: readonly Transaction[];
+};
+
+type Props = {
+  readonly data: EntryData;
+  readonly initial: EntryDraft;
+  readonly original: Transaction | null;
+  readonly controls: {
+    readonly saveRef: MutableRefObject<(() => void) | null>;
+    readonly onDirtyChange: (dirty: boolean) => void;
+    readonly onSaved: () => void;
+  };
+};
+
+const TYPE_OPTIONS = (["expense", "income", "transfer"] as const).map((value) => ({ value, label: TYPE_LABEL[value] }));
+const LEDGER_PREFIXES = ["transactions", "stats", "budgets", "assets", "merchant-rules"] as const;
+
+export function refreshLedger(): void {
+  for (const prefix of LEDGER_PREFIXES) invalidate(prefix);
+}
+
+function saveErrorMessage(error: unknown): string {
+  if (isNetworkError(error)) return "서버에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.";
+  if (isApiError(error) && error.status === 400) return "저장하지 못했어요. 입력한 내용을 확인해 주세요.";
+  return "저장하지 못했어요. 잠시 후 다시 시도해 주세요.";
+}
+
+export function TransactionSheet({ data, initial, original, controls }: Props) {
+  const ids = useId();
+  const formRef = useRef<HTMLFormElement>(null);
+  const busy = useRef(false);
+  const [draft, setDraft] = useState(initial);
+  const [attempted, setAttempted] = useState(false);
+  const [categoryTouched, setCategoryTouched] = useState(original !== null);
+  const [applyToPast, setApplyToPast] = useState(false);
+  const [textFocus, setTextFocus] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const errors = attempted ? validate(draft, original?.amount) : {};
+  const categoryOf = (id: string | null) => data.categories.find((c) => c.id === id);
+  const merchants = [...new Set(data.recent.map((tx) => tx.merchant.trim()).filter(Boolean))].slice(0, 30);
+  const recentCategoryIds = [...new Set(data.recent.flatMap((tx) => (tx.category_id ? [tx.category_id] : [])))];
+  const originalCategory = original ? fromTransaction(original).categoryId : null;
+  const offerApplyToPast =
+    original !== null &&
+    original.merchant_key !== "" &&
+    draft.categoryId !== originalCategory &&
+    draft.categoryId !== null;
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
+
+  const { onDirtyChange } = controls;
+  useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
+
+  const key = (k: KeypadKey) => setDraft((d) => ({ ...d, amount: pressKey(d.amount, k) }));
+  const setType = (type: TransactionType) => setDraft((d) => switchType(d, type, (id) => categoryOf(id)?.type));
+  const pickCategory = (id: string) => {
+    setCategoryTouched(true);
+    setDraft((d) => ({ ...d, categoryId: id }));
+  };
+  const setMerchant = (merchant: string) => {
+    const rule = data.rules.find((r) => r.merchant_key === merchantKey(merchant) && r.type === draft.type);
+    const learned = !categoryTouched && draft.type !== "transfer" && rule ? rule.category_id : null;
+    setDraft((d) => ({ ...d, merchant, ...(learned ? { categoryId: learned } : {}) }));
+  };
+
+  const save = async () => {
+    setAttempted(true);
+    if (busy.current || hasErrors(validate(draft, original?.amount))) return;
+    busy.current = true;
+    setFormError(null);
+    try {
+      if (original) {
+        const patch = toPatch(original, draft, applyToPast);
+        if (Object.keys(patch).length > 0) await api.patchTransaction(original.id, patch);
+      } else {
+        const result = await api.createTransaction(toCreate(draft));
+        if ("queued" in result) toast({ message: "연결되면 저장할게요" });
+      }
+      refreshLedger();
+      controls.onSaved();
+    } catch (error) {
+      setFormError(saveErrorMessage(error));
+    } finally {
+      busy.current = false;
+    }
+  };
+  controls.saveRef.current = () => void save();
+  useEntryKeyboard(formRef, { onKey: key, onEnter: () => void save() });
+
+  const amountErrorId = `${ids}-amount-error`;
+  const textFocusProps = { onFocus: () => setTextFocus(true), onBlur: () => setTextFocus(false) };
+  const typeCategories = data.categories.filter((c) => c.type === draft.type && !c.hidden);
+
+  return (
+    <form ref={formRef} className="entry-form" onSubmit={(e) => e.preventDefault()} noValidate>
+      {(original && original.source !== "manual") || draft.isRefund ? (
+        <p className="entry-badges">
+          {original && original.source !== "manual" ? (
+            <Badge tone="accent">{SOURCE_LABEL[original.source]}</Badge>
+          ) : null}
+          {draft.isRefund ? <Badge tone="accent">환불</Badge> : null}
+        </p>
+      ) : null}
+      <SegmentedControl label="거래 종류" options={TYPE_OPTIONS} value={draft.type} onChange={setType} />
+      <div className="entry-amount-block">
+        <output
+          className="entry-amount num"
+          aria-label="금액"
+          aria-describedby={errors.amount ? amountErrorId : undefined}
+          aria-invalid={errors.amount ? true : undefined}
+          data-empty={draft.amount === "" || undefined}
+        >
+          {formatWon(draft.amount === "" ? 0 : Number(draft.amount))}
+        </output>
+        {errors.amount ? (
+          <p className="field-error entry-amount-error" id={amountErrorId} role="alert">
+            {errors.amount}
+          </p>
+        ) : null}
+      </div>
+      <Keypad onKey={key} hidden={textFocus} />
+      {draft.type === "transfer" ? null : (
+        <CategoryPicker
+          categories={typeCategories}
+          recentIds={recentCategoryIds}
+          value={draft.categoryId}
+          onChange={pickCategory}
+        />
+      )}
+      {offerApplyToPast ? (
+        <label className="entry-toggle">
+          <input type="checkbox" checked={applyToPast} onChange={(e) => setApplyToPast(e.target.checked)} />
+          같은 가게 지난 거래에도 적용
+        </label>
+      ) : null}
+      <AssetPicker
+        label={draft.type === "transfer" ? "보내는 자산" : "자산"}
+        assets={data.assets}
+        value={draft.assetId}
+        onChange={(assetId) => setDraft((d) => ({ ...d, assetId }))}
+      />
+      {draft.type === "transfer" ? (
+        <AssetPicker
+          label="받는 자산"
+          assets={data.assets}
+          value={draft.toAssetId}
+          onChange={(toAssetId) => setDraft((d) => ({ ...d, toAssetId }))}
+          error={errors.toAsset}
+        />
+      ) : null}
+      <DateTimeField
+        date={draft.date}
+        time={draft.time}
+        onChange={(when) => setDraft((d) => ({ ...d, ...when }))}
+        error={errors.when}
+      />
+      <Field label="내용">
+        {(control) => (
+          <Input
+            {...control}
+            {...textFocusProps}
+            list={`${ids}-merchants`}
+            maxLength={100}
+            autoComplete="off"
+            enterKeyHint="done"
+            value={draft.merchant}
+            onChange={(e) => setMerchant(e.target.value)}
+          />
+        )}
+      </Field>
+      <datalist id={`${ids}-merchants`}>
+        {merchants.map((merchant) => (
+          <option key={merchant} value={merchant} />
+        ))}
+      </datalist>
+      <Field label="메모">
+        {(control) => (
+          <Input
+            {...control}
+            {...textFocusProps}
+            maxLength={500}
+            enterKeyHint="done"
+            value={draft.memo}
+            onChange={(e) => setDraft((d) => ({ ...d, memo: e.target.value }))}
+          />
+        )}
+      </Field>
+      {original ? null : (
+        <FavoritesRow
+          templates={data.templates}
+          onPick={(payload) => setDraft((d) => applyTemplate(d, payload))}
+          currentAsTemplate={() => templateFrom(draft, categoryOf(draft.categoryId)?.name)}
+        />
+      )}
+      {formError ? (
+        <p className="field-error" role="alert">
+          {formError}
+        </p>
+      ) : null}
+    </form>
+  );
+}
