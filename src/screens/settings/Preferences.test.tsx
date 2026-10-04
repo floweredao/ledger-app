@@ -94,7 +94,9 @@ describe("Preferences", () => {
   });
   test("a blank month start is rejected without writing settings", async () => {
     render(<Preferences />);
-    await screen.findByLabelText("월 시작일");
+    await act(async () => {
+      await Promise.all([settingsRead.promise, assetsRead.promise]);
+    });
     fireEvent.change(screen.getByLabelText("월 시작일"), { target: { value: "" } });
     const form = screen.getByRole("button", { name: "저장" }).closest("form");
     if (!form) throw new Error("Settings form missing");
