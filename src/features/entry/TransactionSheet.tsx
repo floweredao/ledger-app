@@ -4,6 +4,7 @@ import { formatWon } from "../../../shared/money";
 import type { Asset, Category, MerchantRule, Template, Transaction, TransactionType } from "../../../shared/schema";
 import { api, isApiError, isNetworkError } from "../../api/client";
 import { invalidate } from "../../api/hooks";
+import { Chip } from "../../components/Chip";
 import { Field, Input } from "../../components/Field";
 import { Badge } from "../../components/ListRow";
 import { SegmentedControl } from "../../components/SegmentedControl";
@@ -14,6 +15,7 @@ import { DateTimeField } from "./DateTimeField";
 import { FavoritesRow } from "./FavoritesRow";
 import {
   applyTemplate,
+  convertToTransfer,
   type EntryDraft,
   fromTransaction,
   hasErrors,
@@ -25,6 +27,7 @@ import {
   templateFrom,
   toCreate,
   toPatch,
+  transferTargets,
   validate,
 } from "./form";
 import { Keypad } from "./Keypad";
@@ -101,17 +104,17 @@ export function TransactionSheet({ data, initial, original, controls }: Props) {
     setDraft((d) => ({ ...d, merchant, ...(learned ? { categoryId: learned } : {}) }));
   };
 
-  const save = async () => {
+  const save = async (next: EntryDraft = draft) => {
     setAttempted(true);
-    if (busy.current || hasErrors(validate(draft, original?.amount))) return;
+    if (busy.current || hasErrors(validate(next, original?.amount))) return;
     busy.current = true;
     setFormError(null);
     try {
       if (original) {
-        const patch = toPatch(original, draft, applyToPast);
+        const patch = toPatch(original, next, applyToPast);
         if (Object.keys(patch).length > 0) await api.patchTransaction(original.id, patch);
       } else {
-        const result = await api.createTransaction(toCreate(draft));
+        const result = await api.createTransaction(toCreate(next));
         if ("queued" in result) toast({ message: "연결되면 저장할게요" });
       }
       refreshLedger();
@@ -128,6 +131,12 @@ export function TransactionSheet({ data, initial, original, controls }: Props) {
   const amountErrorId = `${ids}-amount-error`;
   const textFocusProps = { onFocus: () => setTextFocus(true), onBlur: () => setTextFocus(false) };
   const typeCategories = data.categories.filter((c) => c.type === draft.type && !c.hidden);
+  const conversionTargets = original && draft.type !== "transfer" ? transferTargets(data.assets, draft.assetId) : [];
+  const convert = (targetId: string) => {
+    const next = convertToTransfer(draft, targetId);
+    setDraft(next);
+    void save(next);
+  };
 
   return (
     <form ref={formRef} className="entry-form" onSubmit={(e) => e.preventDefault()} noValidate>
@@ -185,6 +194,23 @@ export function TransactionSheet({ data, initial, original, controls }: Props) {
           onChange={(toAssetId) => setDraft((d) => ({ ...d, toAssetId }))}
           error={errors.toAsset}
         />
+      ) : null}
+      {conversionTargets.length > 0 ? (
+        <fieldset className="entry-section entry-fieldset" aria-describedby={`${ids}-convert-hint`}>
+          <legend className="entry-label">이체로 바꾸기</legend>
+          <p className="entry-hint" id={`${ids}-convert-hint`}>
+            {draft.type === "income" || draft.isRefund
+              ? "고른 자산에서 받은 돈으로 바로 저장해요. 통계에서는 빠져요."
+              : "고른 자산으로 보낸 돈으로 바로 저장해요. 통계에서는 빠져요."}
+          </p>
+          <div className="chip-row">
+            {conversionTargets.map((asset) => (
+              <Chip key={asset.id} onClick={() => convert(asset.id)}>
+                {asset.name}
+              </Chip>
+            ))}
+          </div>
+        </fieldset>
       ) : null}
       <DateTimeField
         date={draft.date}

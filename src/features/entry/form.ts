@@ -1,5 +1,6 @@
 import { toKstIso } from "../../../shared/dates";
 import {
+  type Asset,
   MAX_AMOUNT,
   type Source,
   type TemplatePayload,
@@ -182,6 +183,33 @@ export function templateFrom(draft: EntryDraft, categoryName: string | undefined
     memo: fields.memo,
   };
   return { name, payload };
+}
+
+/** Assets an income or expense can be re-recorded as a transfer with: visible non-card assets other than its own account. */
+export function transferTargets(assets: readonly Asset[], assetId: string | null): readonly Asset[] {
+  const own = assets.find((asset) => asset.id === assetId);
+  const ownAccount = own?.kind === "check_card" ? own.linked_asset_id : assetId;
+  return assets.filter(
+    (asset) =>
+      !asset.hidden &&
+      asset.kind !== "check_card" &&
+      asset.kind !== "credit_card" &&
+      asset.id !== assetId &&
+      asset.id !== ownAccount,
+  );
+}
+
+/** Money that left the asset goes to `targetId`; money that arrived (income, refund) came from it. */
+export function convertToTransfer(draft: EntryDraft, targetId: string): EntryDraft {
+  const arrived = draft.type === "income" || draft.isRefund;
+  return {
+    ...draft,
+    type: "transfer",
+    isRefund: false,
+    categoryId: null,
+    assetId: arrived ? targetId : draft.assetId,
+    toAssetId: arrived ? draft.assetId : targetId,
+  };
 }
 
 /** Switching type drops a category that belongs to the other type; transfers carry no category. */

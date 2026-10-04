@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { clearMemoryCache } from "../../api/hooks";
 import { markNetwork, setCsrfToken } from "../../api/transport";
 import { openEntry } from "../../app/entry-bridge";
@@ -57,7 +57,7 @@ const press = (...keys: string[]) => {
   for (const key of keys) fireEvent.click(screen.getByRole("button", { name: key }));
 };
 
-async function open(request: Parameters<typeof openEntry>[0] = {}) {
+async function open(request: Parameters<typeof openEntry>[0] = {}, ready = "식비") {
   const paths = ["categories", "assets", "settings", "templates", "merchant-rules", "transactions"];
   if (request.id) paths.push(`transactions/${request.id}`);
   for (const path of paths) reads.set(path, Promise.withResolvers<void>());
@@ -72,7 +72,7 @@ async function open(request: Parameters<typeof openEntry>[0] = {}) {
     await Promise.all(paths.map((path) => reads.get(path)?.promise));
   });
   // Response consumption and the effects installing keyboard handlers have both finished.
-  expect(screen.getByRole("button", { name: "식비" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: ready })).toBeTruthy();
 }
 
 describe("new entry", () => {
@@ -216,6 +216,74 @@ describe("new entry", () => {
       name: "샘플분식",
       payload: { type: "expense", amount: 4500, merchant: "샘플분식", asset_id: "a-bank" },
     });
+  });
+});
+
+describe("custody transfers", () => {
+  const baseAssets = GETS.assets;
+  const custody = {
+    ...(baseAssets as { items: Record<string, unknown>[] }).items[0],
+    id: "a-custody",
+    name: "샘플보관금",
+    kind: "other",
+    sort: 3,
+  };
+  beforeEach(() => {
+    GETS.assets = { items: [...(baseAssets as { items: unknown[] }).items, custody] };
+  });
+  afterEach(() => {
+    GETS.assets = baseAssets;
+  });
+  const group = (name: string) => within(screen.getByRole("group", { name }));
+
+  test("a new transfer can send from and receive into a custody asset", async () => {
+    await open();
+    fireEvent.click(screen.getByRole("radio", { name: "이체" }));
+    press("5", "0", "0", "0");
+    fireEvent.click(group("보내는 자산").getByRole("button", { name: "샘플보관금" }));
+    fireEvent.click(group("받는 자산").getByRole("button", { name: "테스트통장" }));
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(mutations()).toHaveLength(1));
+    expect(mutations()[0]).toMatchObject({
+      method: "POST",
+      body: { type: "transfer", amount: 5000, asset_id: "a-custody", to_asset_id: "a-bank", category_id: null },
+    });
+  });
+
+  test("one tap turns an imported expense into a transfer to the custody asset", async () => {
+    await open({ id: "tx1" });
+    await waitFor(() => expect(amountText()).toBe("12,000원"));
+    expect(group("이체로 바꾸기").queryByRole("button", { name: "테스트통장" })).toBeNull();
+    fireEvent.click(group("이체로 바꾸기").getByRole("button", { name: "샘플보관금" }));
+    await waitFor(() => expect(mutations()).toHaveLength(1));
+    expect(mutations()[0]).toMatchObject({ method: "PATCH", url: "/api/v1/transactions/tx1" });
+    expect(mutations()[0]?.body).toEqual({ type: "transfer", to_asset_id: "a-custody", category_id: null });
+  });
+
+  test("one tap turns an imported income into a transfer from the custody asset", async () => {
+    GETS["transactions/tx1"] = { ...row, type: "income", category_id: "c-salary" };
+    await open({ id: "tx1" }, "급여");
+    await waitFor(() => expect(amountText()).toBe("12,000원"));
+    fireEvent.click(group("이체로 바꾸기").getByRole("button", { name: "샘플보관금" }));
+    await waitFor(() => expect(mutations()).toHaveLength(1));
+    expect(mutations()[0]?.body).toEqual({
+      type: "transfer",
+      asset_id: "a-custody",
+      to_asset_id: "a-bank",
+      category_id: null,
+    });
+  });
+
+  test("transfers and new entries do not offer a conversion", async () => {
+    await open({ id: "tx1" });
+    await waitFor(() => expect(amountText()).toBe("12,000원"));
+    fireEvent.click(screen.getByRole("radio", { name: "이체" }));
+    expect(screen.queryByRole("group", { name: "이체로 바꾸기" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+    act(() => openEntry({}));
+    await waitFor(() => expect(screen.getByRole("button", { name: "식비" })).toBeTruthy());
+    expect(screen.queryByRole("group", { name: "이체로 바꾸기" })).toBeNull();
+    expect(mutations()).toHaveLength(0);
   });
 });
 

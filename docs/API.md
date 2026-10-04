@@ -100,6 +100,8 @@ Transaction 필드: `id, type('expense'|'income'|'transfer'), occurred_at, amoun
 
 분류가 바뀌고 `learn`이 false가 아니며 가맹점 키가 있으면 `merchant_rules`에 학습해요. 그때 `apply_to_past: true`면 같은 가맹점 키, 같은 타입의 다른 거래 중 `category_id`가 잠기지 않은 것도 바꿔요. 응답은 `Transaction`에 `applied_count`(바꾼 과거 거래 수, 기본 0)를 더한 객체예요. 없으면 404.
 
+수입·지출을 다른 자산과 주고받은 이체로 바꿀 때도 이 PATCH를 써요. 거래 편집 화면의 "이체로 바꾸기"는 나간 돈(지출)이면 `{type:'transfer', to_asset_id:<고른 자산>, category_id:null}`, 들어온 돈(수입·환불)이면 `{type:'transfer', asset_id:<고른 자산>, to_asset_id:<원래 자산>, category_id:null}`(환불이면 `is_refund:false` 포함)을 보내요. 바뀐 필드가 잠기므로 같은 거래를 다시 가져오거나 엑셀로 병합해도 이체가 유지돼요. 이체는 통계와 합계에서 빠지고, 잔액에는 각 자산의 `opening_date` 규칙대로 반영돼요. 자동으로 바꾸는 규칙은 없어요.
+
 ### `DELETE /transactions/:id`
 소프트 삭제(`deleted_at` 설정). 응답 `Transaction`.
 
