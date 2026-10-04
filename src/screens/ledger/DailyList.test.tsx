@@ -352,3 +352,43 @@ test("nested category and asset names are resolved from the real response shapes
     globalThis.fetch = originalFetch;
   }
 });
+
+test("a transfer without a merchant names the transfer and both assets instead of a missing category", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const body = url.includes("categories")
+        ? categories
+        : url.includes("assets")
+          ? {
+              items: [
+                { id: "asset-1", name: "테스트통장" },
+                { id: "asset-2", name: "샘플보관금" },
+              ],
+            }
+          : list([
+              transaction({
+                type: "transfer",
+                asset_id: "asset-2",
+                to_asset_id: "asset-1",
+                category_id: null,
+                merchant: "",
+                memo: "",
+                amount: 30000,
+              }),
+            ]);
+      return new Response(JSON.stringify(body));
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  try {
+    navigate("/?month=2026-10", { replace: true });
+    render(<DailyList />);
+    const row = await screen.findByRole("button", { name: /샘플보관금 → 테스트통장/ });
+    expect(row.querySelector(".list-row-title")?.textContent).toBe("이체");
+    expect(row.textContent).not.toContain("분류 없음");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

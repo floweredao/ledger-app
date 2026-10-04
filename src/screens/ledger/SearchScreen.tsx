@@ -15,6 +15,7 @@ import { download, paths } from "../../api/client";
 import { useApi } from "../../api/hooks";
 import { isPendingTransaction } from "../../api/outbox";
 import { openEntry } from "../../app/entry-bridge";
+import { TRANSFER_ICON, transactionTitle, transferRoute } from "../../app/transaction-label";
 import { AmountText } from "../../components/AmountText";
 import { Button } from "../../components/Button";
 import { CategoryIcon } from "../../components/CategoryIcon";
@@ -53,11 +54,6 @@ function transactionQuery(text: string, filters: SearchFilters) {
   };
 }
 
-function transactionTitle(transaction: Transaction, categories: readonly Category[]): string {
-  if (transaction.merchant.trim()) return transaction.merchant;
-  return categories.find((category) => category.id === transaction.category_id)?.name ?? "분류 없음";
-}
-
 function TransactionRow({
   transaction,
   categories,
@@ -85,11 +81,17 @@ function TransactionRow({
       ) : null}
     </>
   );
-  const subtitle = [transaction.memo, asset?.name ?? transaction.src_account].filter(Boolean).join(" · ");
+  const route = transferRoute(transaction, (id) => assets.find((item) => item.id === id)?.name);
+  const subtitle = [transaction.memo, route ?? asset?.name ?? transaction.src_account].filter(Boolean).join(" · ");
   return (
     <ListRow
-      leading={<CategoryIcon icon={category?.icon} color={category?.color} />}
-      title={transactionTitle(transaction, categories)}
+      leading={
+        <CategoryIcon
+          icon={category?.icon ?? (transaction.type === "transfer" ? TRANSFER_ICON : undefined)}
+          color={category?.color}
+        />
+      }
+      title={transactionTitle(transaction, category?.name)}
       subtitle={subtitle || undefined}
       badges={badges}
       trailing={

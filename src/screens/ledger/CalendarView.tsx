@@ -70,7 +70,11 @@ function DayTransactions({ date }: { readonly date: string }) {
         return (
           <li key={transaction.id}>
             <ListRow
-              title={transaction.merchant || transaction.memo || "이름 없는 거래"}
+              title={
+                transaction.merchant ||
+                transaction.memo ||
+                (transaction.type === "transfer" ? "이체" : "이름 없는 거래")
+              }
               subtitle={transaction.merchant && transaction.memo ? transaction.memo : undefined}
               badges={transaction.krw_status === "pending" ? <Badge tone="warning">원화 미확정</Badge> : undefined}
               trailing={

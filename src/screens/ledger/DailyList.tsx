@@ -9,6 +9,7 @@ import { invalidate, useApi } from "../../api/hooks";
 import { isPendingTransaction } from "../../api/outbox";
 import { openEntry } from "../../app/entry-bridge";
 import { calendarMonthFilter } from "../../app/periods";
+import { TRANSFER_ICON, transactionTitle, transferRoute } from "../../app/transaction-label";
 import { AmountText } from "../../components/AmountText";
 import { Button } from "../../components/Button";
 import { CategoryIcon } from "../../components/CategoryIcon";
@@ -75,13 +76,14 @@ function DaySection({
       <div className="daily-day-rows">
         {group.transactions.map((transaction) => {
           const category = transaction.category_id ? categories.get(transaction.category_id) : undefined;
-          const title = transaction.merchant || category?.name || "분류 없음";
+          const title = transactionTitle(transaction, category?.name);
           const foreignAmount =
             transaction.currency !== "KRW" && transaction.foreign_amount !== null
               ? `${transaction.type === "expense" && !transaction.is_refund ? "-" : transaction.type === "transfer" ? "" : "+"}${transaction.currency} ${transaction.foreign_amount.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}`
               : null;
           const assetName = transaction.asset_id ? assets.get(transaction.asset_id) : undefined;
-          const subtitle = [transaction.memo, assetName ?? transaction.src_account ?? undefined]
+          const route = transferRoute(transaction, (id) => assets.get(id));
+          const subtitle = [transaction.memo, route ?? assetName ?? transaction.src_account ?? undefined]
             .filter(Boolean)
             .join(" · ");
           const badges = (
@@ -100,7 +102,12 @@ function DaySection({
           return (
             <ListRow
               key={transaction.id}
-              leading={<CategoryIcon icon={category?.icon} color={category?.color} />}
+              leading={
+                <CategoryIcon
+                  icon={category?.icon ?? (transaction.type === "transfer" ? TRANSFER_ICON : undefined)}
+                  color={category?.color}
+                />
+              }
               title={title}
               subtitle={subtitle || undefined}
               badges={badges}
