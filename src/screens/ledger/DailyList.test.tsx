@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { addDays, monthRange } from "../../../shared/dates";
 import type { CategoryNode, Transaction, TransactionList } from "../../../shared/schema";
 import { clearMemoryCache } from "../../api/hooks";
@@ -68,6 +68,20 @@ function list(items: Transaction[]): TransactionList {
     totals: { income: 0, expense: 0, net: 0, count: items.length },
     next_cursor: null,
   };
+}
+
+function consumedJson(payload: unknown, consumed?: () => void): Response {
+  const response = new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { "Content-Type": "application/json" },
+  });
+  const text = response.text.bind(response);
+  response.text = async () => {
+    const body = await text();
+    consumed?.();
+    return body;
+  };
+  return response;
 }
 
 function EntrySignal() {
@@ -176,6 +190,9 @@ describe("DailyList", () => {
 
   test("empty month offers record creation and manual refresh runs sync before reload", async () => {
     const calls: string[] = [];
+    const loaded = Promise.withResolvers<void>();
+    const synced = Promise.withResolvers<void>();
+    const reloaded = Promise.withResolvers<void>();
     const originalFetch = globalThis.fetch;
     globalThis.fetch = Object.assign(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -186,7 +203,14 @@ describe("DailyList", () => {
           : url.includes("categories")
             ? categories
             : list([]);
-        return new Response(JSON.stringify(payload), { status: 200, headers: { "Content-Type": "application/json" } });
+        const signal = url.includes("sync/run")
+          ? synced
+          : url.includes("transactions")
+            ? calls.some((call) => call.startsWith("POST"))
+              ? reloaded
+              : loaded
+            : undefined;
+        return consumedJson(payload, signal?.resolve);
       },
       { preconnect: originalFetch.preconnect },
     );
@@ -199,14 +223,21 @@ describe("DailyList", () => {
           <EntrySignal />
         </>,
       );
-      expect(await screen.findByText("이번 달 기록이 없어요")).toBeTruthy();
+      await act(async () => {
+        await loaded.promise;
+      });
+      expect(screen.getByText("이번 달 기록이 없어요")).toBeTruthy();
       fireEvent.click(screen.getByRole("button", { name: "기록하기" }));
       await waitFor(() => expect(screen.getByTestId("entry-request").textContent).toBe(firstDate));
 
       fireEvent.click(screen.getByRole("button", { name: "지금 동기화" }));
-      await waitFor(() =>
-        expect(calls.some((call) => call.startsWith("POST") && call.includes("sync/run"))).toBe(true),
-      );
+      await act(async () => {
+        await synced.promise;
+      });
+      await act(async () => {
+        await reloaded.promise;
+      });
+      expect(calls.some((call) => call.startsWith("POST") && call.includes("sync/run"))).toBe(true);
       const syncIndex = calls.findIndex((call) => call.startsWith("POST"));
       expect(calls.slice(syncIndex + 1).some((call) => call.startsWith("GET") && call.includes("transactions"))).toBe(
         true,
@@ -218,6 +249,9 @@ describe("DailyList", () => {
 
   test("pulling down from the top runs sync and refreshes the list", async () => {
     const calls: string[] = [];
+    const loaded = Promise.withResolvers<void>();
+    const synced = Promise.withResolvers<void>();
+    const reloaded = Promise.withResolvers<void>();
     const originalFetch = globalThis.fetch;
     globalThis.fetch = Object.assign(
       async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -228,10 +262,14 @@ describe("DailyList", () => {
           : url.includes("categories")
             ? categories
             : list([]);
-        return new Response(JSON.stringify(payload), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        const signal = url.includes("sync/run")
+          ? synced
+          : url.includes("transactions")
+            ? calls.some((call) => call.startsWith("POST"))
+              ? reloaded
+              : loaded
+            : undefined;
+        return consumedJson(payload, signal?.resolve);
       },
       { preconnect: originalFetch.preconnect },
     );
@@ -239,17 +277,25 @@ describe("DailyList", () => {
     try {
       navigate(`/?month=${month}`, { replace: true });
       render(<DailyList />);
-      const content = await screen.findByText("이번 달 기록이 없어요");
+      await act(async () => {
+        await loaded.promise;
+      });
+      const content = screen.getByText("이번 달 기록이 없어요");
       const root = content.closest(".daily-empty");
       if (!(root instanceof HTMLElement)) throw new Error("Daily refresh region missing");
 
-      touch(root, "touchstart", 20);
-      touch(root, "touchmove", 110);
-      touch(root, "touchend");
-
-      await waitFor(() =>
-        expect(calls.some((call) => call.startsWith("POST") && call.includes("sync/run"))).toBe(true),
-      );
+      act(() => {
+        touch(root, "touchstart", 20);
+        touch(root, "touchmove", 110);
+        touch(root, "touchend");
+      });
+      await act(async () => {
+        await synced.promise;
+      });
+      await act(async () => {
+        await reloaded.promise;
+      });
+      expect(calls.some((call) => call.startsWith("POST") && call.includes("sync/run"))).toBe(true);
       expect(calls.filter((call) => call.startsWith("GET") && call.includes("transactions")).length).toBeGreaterThan(1);
     } finally {
       globalThis.fetch = originalFetch;
