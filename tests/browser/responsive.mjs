@@ -53,6 +53,15 @@ async function inspect(label, width) {
       const r=e.getBoundingClientRect();
       if(r.width&&(r.right>innerWidth+1||r.left< -1))issues.push({element:e.className,left:r.left,right:r.right});
     }
+    for(const row of document.querySelectorAll('.entry-datetime')){
+      const fields=[...row.querySelectorAll('.field')].map(f=>({field:f.getBoundingClientRect(),input:f.querySelector('input')?.getBoundingClientRect()}));
+      for(const {field,input} of fields){
+        if(input&&(input.left<field.left-1||input.right>field.right+1))
+          issues.push({element:'entry-datetime input outside its column',field:[field.left,field.right],input:[input.left,input.right]});
+      }
+      const [date,time]=fields.map(f=>f.input);
+      if(date&&time&&date.right>time.left+1)issues.push({element:'entry-datetime overlap',date:date.right,time:time.left});
+    }
     const sheet=document.querySelector('.sheet-body');
     if(sheet&&['auto','scroll'].includes(getComputedStyle(sheet).overflowX))
       issues.push({element:'sheet-body',horizontalScrollPolicy:getComputedStyle(sheet).overflowX});

@@ -126,7 +126,7 @@ bun run test:responsive
 
 이 프로젝트의 운영 Mac에서는 전체 테스트·빌드·반응형 검증을 각각 `heavy bun test`, `heavy bun run build`, `heavy bun run test:responsive`로 실행해요. 동시 작업 한도를 우회하지 않아요.
 
-반응형 검증은 Chrome/Chromium과 Bun.WebView를 사용해 합성 DB에서 320·375·390px의 화면·편집 시트·키패드·가로 넘침을 검사하고 자기 리소스를 정리해요. 실제 iPhone의 설치 상태바와 네이티브 공유 시트는 데스크톱 검증과 별도로 확인해야 해요.
+반응형 검증은 Chrome/Chromium과 Bun.WebView를 사용해 합성 DB에서 320·375·390px의 화면·편집 시트·키패드·가로 넘침을 검사하고 자기 리소스를 정리해요. iOS의 날짜·시간 입력 폭은 Chrome에서 재현되지 않아서, Xcode iPhone 시뮬레이터가 있는 Mac에서는 `bun run test:responsive:ios`로 시뮬레이터 Safari의 편집 시트 날짜·시간 칸을 320·375·390px에서 따로 검사해요. 실제 iPhone의 설치 상태바와 네이티브 공유 시트는 데스크톱 검증과 별도로 확인해야 해요.
 
 - [API 계약](docs/API.md)
 - [런타임·복원](docs/runtime.md)

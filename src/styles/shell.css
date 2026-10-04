@@ -353,6 +353,12 @@
   font-size: var(--text-md);
 }
 
+/* iOS Safari keeps a native intrinsic width on date/time controls and ignores width:100% until appearance is reset. */
+.input:is([type="date"], [type="time"], [type="datetime-local"], [type="month"]) {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
 .input[aria-invalid="true"] {
   border-color: var(--danger);
 }

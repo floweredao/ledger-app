@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:responsive": "bun tests/browser/responsive.mjs",
+    "test:responsive:ios": "bun tests/browser/ios-datetime.mjs",
     "lint": "biome check ."
   },
   "dependencies": {
