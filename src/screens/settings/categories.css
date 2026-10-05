@@ -70,8 +70,36 @@
   touch-action: none;
   cursor: grab;
 }
-.category-dragging {
-  background: var(--wash-strong);
+.category-group,
+.category-item {
+  position: relative;
+}
+.category-tree[data-reordering] {
+  -webkit-user-select: none;
+  user-select: none;
+}
+.category-tree[data-reordering] .category-group {
+  overflow: visible;
+}
+.category-tree[data-reordering] .category-group,
+.category-tree[data-reordering] .category-item.level-1 {
+  transition: transform var(--dur-base) var(--ease-out);
+}
+.category-tree[data-reordering] [data-dragging] {
+  z-index: 2;
+  transition: none;
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-2);
+}
+.category-tree[data-reordering] .category-drag-handle {
+  cursor: grabbing;
+}
+.category-usage {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-start: var(--space-5);
 }
 .category-form {
   display: grid;

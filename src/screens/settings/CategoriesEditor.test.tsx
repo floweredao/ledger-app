@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { cleanup, fireEvent, render, screen, waitForElementToBeRemoved, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, waitForElementToBeRemoved, within } from "@testing-library/react";
 import { indexedDB as testIndexedDB } from "fake-indexeddb";
-import type { Category, CategoryNode } from "../../../shared/schema";
+import type { Category, CategoryNode, CategoryUsage } from "../../../shared/schema";
 import { clearCache } from "../../api/cache";
 import { clearMemoryCache } from "../../api/hooks";
 import { markNetwork } from "../../api/transport";
@@ -26,6 +26,8 @@ const category = (id: string, name: string, overrides: Partial<Category> = {}): 
 let rows: Category[];
 let calls: { url: URL; method: string; body: Record<string, unknown> }[];
 let conflict: boolean;
+let usage: CategoryUsage;
+let deleteError: Response | "network" | null;
 let fail: boolean;
 let loading: boolean;
 let releaseLoading: (() => void) | undefined;
@@ -57,6 +59,16 @@ beforeEach(async () => {
   ];
   calls = [];
   conflict = false;
+  usage = {
+    transactions: 0,
+    deleted_transactions: 0,
+    budgets: 0,
+    merchant_rules: 0,
+    recurring_rules: 0,
+    templates: 0,
+    children: 0,
+  };
+  deleteError = null;
   fail = false;
   loading = false;
   globalThis.fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
@@ -69,6 +81,7 @@ beforeEach(async () => {
         releaseLoading = resolve;
       });
     if (fail) return json({ error: { code: "internal_error", message: "Server error" } }, 500);
+    if (method === "GET" && url.pathname.endsWith("/usage")) return json(usage);
     if (method === "GET") {
       const type = url.searchParams.get("type");
       return json({ items: tree().filter((c) => !type || c.type === type) });
@@ -96,8 +109,18 @@ beforeEach(async () => {
     }
     if (conflict && !url.searchParams.has("reassign_to"))
       return json({ error: { code: "in_use", message: "Category is referenced" } }, 409);
+    if (deleteError === "network") throw new TypeError("Failed to fetch");
+    if (deleteError) return deleteError;
     rows = rows.filter((c) => c.id !== id);
-    return json({ ok: true });
+    const moved = {
+      transactions: usage.transactions + usage.deleted_transactions,
+      budgets: usage.budgets,
+      merchant_rules: usage.merchant_rules,
+      recurring_rules: usage.recurring_rules,
+      templates: usage.templates,
+      children: usage.children,
+    };
+    return json({ ok: true, moved });
   }) as typeof fetch;
 });
 afterEach(async () => {
@@ -220,6 +243,8 @@ describe("CategoriesEditor", () => {
     render(<CategoriesEditor />);
     fireEvent.click((await row("외식")).getByRole("button", { name: "외식 삭제" }));
     expect(mutations()).toHaveLength(0);
+    const confirm = within(screen.getByRole("dialog")).getByRole("button", { name: "삭제" });
+    await waitFor(() => expect((confirm as HTMLButtonElement).disabled).toBe(false));
     const requestFetch = globalThis.fetch;
     const refreshGate = Promise.withResolvers<void>();
     globalThis.fetch = Object.assign(
@@ -242,18 +267,83 @@ describe("CategoriesEditor", () => {
       globalThis.fetch = requestFetch;
     }
   });
-  test("409 offers valid reassignment and sends reassign_to query", async () => {
-    conflict = true;
+  test("an in-use category shows what uses it, then moves everything and deletes", async () => {
+    usage = { ...usage, transactions: 3, deleted_transactions: 1, merchant_rules: 2, children: 1 };
     render(<CategoriesEditor />);
     fireEvent.click((await row("식비")).getByRole("button", { name: "식비 삭제" }));
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "삭제" }));
-    const select = await screen.findByLabelText("다른 분류로 옮기기");
+    const dialog = within(await screen.findByRole("dialog"));
+    expect(await dialog.findByText(/기록 3건/)).toBeTruthy();
+    expect(dialog.getByText(/가맹점 규칙 2개/)).toBeTruthy();
+    expect(dialog.getByText(/하위 분류 1개/)).toBeTruthy();
+    const select = dialog.getByLabelText("옮길 분류");
     expect(within(select).queryByRole("option", { name: "급여" })).toBeNull();
     expect(within(select).queryByRole("option", { name: "외식" })).toBeNull();
     fireEvent.change(select, { target: { value: "transport" } });
-    fireEvent.click(screen.getByRole("button", { name: "옮기고 삭제" }));
-    await screen.findByText("분류를 삭제했어요");
-    expect(mutations()[1]?.url.searchParams.get("reassign_to")).toBe("transport");
+    fireEvent.click(dialog.getByRole("button", { name: "옮기고 삭제" }));
+    expect(await screen.findByText(/교통으로 옮긴 뒤.*기록 4건/)).toBeTruthy();
+    expect(mutations()[0]?.url.searchParams.get("reassign_to")).toBe("transport");
+  });
+  test("a dropped connection while deleting says so instead of blaming the category", async () => {
+    deleteError = "network";
+    render(<CategoriesEditor />);
+    fireEvent.click((await row("외식")).getByRole("button", { name: "외식 삭제" }));
+    const dialog = within(await screen.findByRole("dialog"));
+    fireEvent.click(await dialog.findByRole("button", { name: "삭제" }));
+    expect((await dialog.findByRole("alert")).textContent).toContain("서버에 연결하지 못했어요");
+  });
+  test("a child-name clash names the clashing children", async () => {
+    rows.push(category("dining2", "외식", { parent_id: "transport" }));
+    usage = { ...usage, transactions: 1, children: 1 };
+    deleteError = json({ error: { code: "conflict", message: "A category with this name already exists" } }, 409);
+    render(<CategoriesEditor />);
+    fireEvent.click((await row("식비")).getByRole("button", { name: "식비 삭제" }));
+    const dialog = within(await screen.findByRole("dialog"));
+    fireEvent.change(await dialog.findByLabelText("옮길 분류"), { target: { value: "transport" } });
+    fireEvent.click(dialog.getByRole("button", { name: "옮기고 삭제" }));
+    expect((await dialog.findByRole("alert")).textContent).toContain("외식");
+  });
+  test("the editor moves a category under another parent", async () => {
+    render(<CategoriesEditor />);
+    const dialog = within(await edit("교통"));
+    fireEvent.change(dialog.getByLabelText("상위 분류"), { target: { value: "food" } });
+    await save();
+    await screen.findByText("분류를 저장했어요");
+    expect(mutations()[0]?.body).toMatchObject({ parent_id: "food" });
+  });
+  test("the editor promotes a child to a top-level category", async () => {
+    render(<CategoriesEditor />);
+    const dialog = within(await edit("외식"));
+    fireEvent.change(dialog.getByLabelText("상위 분류"), { target: { value: "" } });
+    await save();
+    await screen.findByText("분류를 저장했어요");
+    expect(mutations()[0]?.body).toMatchObject({ parent_id: null });
+  });
+  test("dragging a handle past a sibling reorders and saves", async () => {
+    render(<CategoriesEditor />);
+    const handle = (await row("교통")).getByRole("button", { name: "교통 순서 드래그" });
+    const place = (selector: string, top: number, height: number) => {
+      const el = document.querySelector(selector);
+      if (!(el instanceof HTMLElement)) throw new Error(`missing ${selector}`);
+      el.getBoundingClientRect = () => ({
+        top,
+        bottom: top + height,
+        height,
+        left: 0,
+        right: 300,
+        width: 300,
+        x: 0,
+        y: top,
+        toJSON: () => ({}),
+      });
+    };
+    place('[data-reorder-id="food"]', 0, 120);
+    place('[data-reorder-id="transport"]', 136, 60);
+    fireEvent.pointerDown(handle, { pointerId: 1, button: 0, clientY: 160, pointerType: "touch" });
+    fireEvent.pointerMove(handle, { pointerId: 1, clientY: 20, pointerType: "touch" });
+    expect(document.querySelector('[data-reorder-id="transport"]')?.getAttribute("data-dragging")).toBe("true");
+    fireEvent.pointerUp(handle, { pointerId: 1, clientY: 20, pointerType: "touch" });
+    await screen.findByText("순서를 변경했어요");
+    expect(mutations()[0]?.body).toEqual({ ids: ["transport", "food"] });
   });
   test("error state retries the real fetch", async () => {
     fail = true;

@@ -9,7 +9,9 @@ import type {
   Category,
   CategoryInput,
   CategoryPatch,
+  CategoryUsage,
   MerchantRule,
+  ReassignedCounts,
   RecurringRule,
   SessionState,
   Settings,
@@ -137,7 +139,11 @@ export const api = {
   createCategory: (input: CategoryInput) => send<Category>("POST", "categories", input),
   patchCategory: (id: string, patch: CategoryPatch) => send<Category>("PATCH", `categories/${enc(id)}`, patch),
   deleteCategory: (id: string, reassignTo?: string) =>
-    send<{ ok: true }>("DELETE", withQuery(`categories/${enc(id)}`, { reassign_to: reassignTo })),
+    send<{ ok: true; moved: ReassignedCounts }>(
+      "DELETE",
+      withQuery(`categories/${enc(id)}`, { reassign_to: reassignTo }),
+    ),
+  categoryUsage: (id: string) => apiJson<CategoryUsage>(`categories/${enc(id)}/usage`),
   reorderCategories: (ids: readonly string[]) => send<{ ok: true }>("POST", "categories/reorder", { ids }),
   deleteMerchantRule: (merchantKey: string, type?: TransactionType) =>
     send<{ ok: true }>("DELETE", withQuery(`merchant-rules/${enc(merchantKey)}`, { type })),

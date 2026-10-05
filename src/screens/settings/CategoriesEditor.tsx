@@ -1,21 +1,44 @@
 import { ArrowDown, ArrowUp, GripVertical, Plus } from "lucide-react";
 import { useRef, useState } from "react";
-import type { Category, CategoryNode, CategoryType } from "../../../shared/schema";
-import { api, isApiError, paths } from "../../api/client";
+import type { Category, CategoryNode, CategoryType, CategoryUsage, ReassignedCounts } from "../../../shared/schema";
+import { api, isApiError, isNetworkError, paths } from "../../api/client";
 import { invalidate, useApi } from "../../api/hooks";
 import { Button, IconButton } from "../../components/Button";
 import { CATEGORY_ICONS, CategoryIcon, categoryColor } from "../../components/CategoryIcon";
 import { ConfirmDialog, Dialog } from "../../components/Dialog";
 import { Field, Input, Select } from "../../components/Field";
+import { useDragReorder } from "./useDragReorder";
 import "./categories.css";
 
 type Draft = {
   readonly category: Category | null;
-  readonly parent: Category | null;
+  readonly parentId: string | null;
   readonly name: string;
   readonly icon: string;
   readonly color: string;
 };
+
+const OFFLINE = "서버에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.";
+const USAGE_LABELS: readonly (readonly [keyof CategoryUsage, string, string])[] = [
+  ["transactions", "기록", "건"],
+  ["deleted_transactions", "휴지통의 기록", "건"],
+  ["budgets", "예산", "개"],
+  ["merchant_rules", "가맹점 규칙", "개"],
+  ["recurring_rules", "반복 기록", "개"],
+  ["templates", "즐겨찾기", "개"],
+  ["children", "하위 분류", "개"],
+];
+const countsText = (counts: Partial<Record<keyof CategoryUsage, number>>) =>
+  USAGE_LABELS.flatMap(([key, label, unit]) => ((counts[key] ?? 0) > 0 ? [`${label} ${counts[key]}${unit}`] : []));
+const inUse = (usage: CategoryUsage) => countsText(usage).length > 0;
+const groupKey = (parentId: string | null) => parentId ?? "";
+/** `교통` -> `교통으로`, `카페` -> `카페로` (ㄹ받침도 `로`). */
+function withRo(name: string): string {
+  const code = name.charCodeAt(name.length - 1) - 0xac00;
+  if (code < 0 || code > 11171) return `${name}(으)로`;
+  const final = code % 28;
+  return `${name}${final === 0 || final === 8 ? "로" : "으로"}`;
+}
 
 export default function CategoriesEditor() {
   const [type, setType] = useState<CategoryType>("expense");
@@ -26,23 +49,36 @@ export default function CategoriesEditor() {
   const original = useRef<Draft | null>(null);
   const [discard, setDiscard] = useState(false);
   const [deleting, setDeleting] = useState<Category | null>(null);
-  const [reassign, setReassign] = useState(false);
+  const [usage, setUsage] = useState<CategoryUsage | null>(null);
   const [target, setTarget] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [err, setErr] = useState("");
   const [nameError, setNameError] = useState("");
-  const drag = useRef<{ category: Category; pointer: number } | null>(null);
-  const [dragging, setDragging] = useState<string | null>(null);
-  const roots = data?.items ?? [];
+  // A committed order shows right away and gives way to the next fetched list instead of snapping back meanwhile.
+  const [pending, setPending] = useState<{ key: string; ids: readonly string[]; base: unknown } | null>(null);
+  const ordered = <T extends Category>(items: readonly T[], parentId: string | null): T[] => {
+    const sorted = [...items].sort((a, b) => a.sort - b.sort);
+    if (!pending || pending.base !== data || pending.key !== groupKey(parentId)) return sorted;
+    const { ids } = pending;
+    const rank = (item: T) => ids.indexOf(item.id);
+    return sorted.sort((a, b) => rank(a) - rank(b));
+  };
+  const roots = ordered(data?.items ?? [], null);
   const categories = roots.flatMap((root) => [root, ...root.children]);
   const siblings = (category: Category) =>
-    categories.filter((c) => c.parent_id === category.parent_id).sort((a, b) => a.sort - b.sort);
+    category.parent_id === null
+      ? roots
+      : ordered(
+          categories.filter((c) => c.parent_id === category.parent_id),
+          category.parent_id,
+        );
+  const nameOf = (id: string) => categories.find((c) => c.id === id)?.name ?? "";
 
   function openEditor(category: Category | null, parent: Category | null) {
     const next: Draft = {
       category,
-      parent,
+      parentId: category?.parent_id ?? parent?.id ?? null,
       name: category?.name ?? "",
       icon: category?.icon ?? "tag",
       color: category?.color ?? parent?.color ?? "cat-1",
@@ -55,12 +91,14 @@ export default function CategoriesEditor() {
   }
   function closeEditor() {
     if (busy) return;
+    const before = original.current;
     if (
       draft &&
-      original.current &&
-      (draft.name !== original.current.name ||
-        draft.icon !== original.current.icon ||
-        draft.color !== original.current.color)
+      before &&
+      (draft.name !== before.name ||
+        draft.icon !== before.icon ||
+        draft.color !== before.color ||
+        draft.parentId !== before.parentId)
     )
       setDiscard(true);
     else setDraft(null);
@@ -75,44 +113,63 @@ export default function CategoriesEditor() {
     setBusy(true);
     setErr("");
     setNameError("");
-    const fields = { name, icon: draft.icon, color: draft.parent ? null : draft.color };
+    const fields = { name, icon: draft.icon, color: draft.parentId ? null : draft.color };
+    const moved = draft.category !== null && draft.parentId !== draft.category.parent_id;
     try {
-      if (draft.category) await api.patchCategory(draft.category.id, fields);
+      if (draft.category)
+        await api.patchCategory(draft.category.id, { ...fields, ...(moved ? { parent_id: draft.parentId } : {}) });
       else
         await api.createCategory({
           type,
           ...fields,
-          ...(draft.parent ? { parent_id: draft.parent.id } : {}),
+          ...(draft.parentId ? { parent_id: draft.parentId } : {}),
         });
       setDraft(null);
       setMessage("분류를 저장했어요");
       invalidate("categories");
-    } catch {
-      setErr("분류를 저장하지 못했어요. 이름 중복과 연결 상태를 확인해 주세요.");
+      if (moved) for (const prefix of ["transactions", "stats", "budgets"]) invalidate(prefix);
+    } catch (error) {
+      if (isNetworkError(error)) setErr(OFFLINE);
+      else if (isApiError(error) && error.status === 409)
+        setErr(
+          moved && draft.category
+            ? `${draft.parentId ? nameOf(draft.parentId) : "대분류"}에 이름이 같은 분류가 있어요. 이름을 바꾸거나 다른 곳으로 옮겨 주세요.`
+            : "같은 이름의 분류가 이미 있어요. 다른 이름을 입력해 주세요.",
+        );
+      else setErr("분류를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
       setBusy(false);
     }
   }
-  async function reorder(category: Category, destination: Category) {
-    if (busy || category.id === destination.id || category.parent_id !== destination.parent_id) return;
-    const group = siblings(category);
-    const ids = group.map((c) => c.id);
-    const from = ids.indexOf(category.id);
-    const to = ids.indexOf(destination.id);
-    ids.splice(from, 1);
-    ids.splice(to, 0, category.id);
+  async function saveOrder(parentId: string | null, ids: readonly string[]) {
+    if (busy) return;
+    setPending({ key: groupKey(parentId), ids, base: data });
     setBusy(true);
     setErr("");
     try {
       await api.reorderCategories(ids);
       invalidate("categories");
       setMessage("순서를 변경했어요");
-    } catch {
-      setErr("순서를 변경하지 못했어요");
+    } catch (error) {
+      setPending(null);
+      setErr(isNetworkError(error) ? OFFLINE : "순서를 변경하지 못했어요");
     } finally {
       setBusy(false);
     }
   }
+  function step(category: Category, offset: -1 | 1) {
+    const ids = siblings(category).map((c) => c.id);
+    const from = ids.indexOf(category.id);
+    const to = from + offset;
+    if (from === -1 || to < 0 || to >= ids.length) return;
+    ids.splice(from, 1);
+    ids.splice(to, 0, category.id);
+    void saveOrder(category.parent_id, ids);
+  }
+  const drag = useDragReorder((ids) => {
+    const first = categories.find((c) => c.id === ids[0]);
+    if (first) void saveOrder(first.parent_id, ids);
+  });
   async function toggle(category: Category) {
     setBusy(true);
     setErr("");
@@ -120,34 +177,28 @@ export default function CategoriesEditor() {
       await api.patchCategory(category.id, { hidden: !category.hidden });
       invalidate("categories");
       setMessage(category.hidden ? "분류를 표시했어요" : "분류를 숨겼어요");
-    } catch {
-      setErr("분류 표시 상태를 변경하지 못했어요");
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function remove() {
-    if (!deleting || busy || (reassign && !target)) return;
-    setBusy(true);
-    setErr("");
-    try {
-      await api.deleteCategory(deleting.id, reassign ? target : undefined);
-      setDeleting(null);
-      invalidate("categories");
-      invalidate("merchant-rules");
-      invalidate("transactions");
-      invalidate("budgets");
-      setMessage("분류를 삭제했어요");
     } catch (error) {
-      if (isApiError(error) && error.status === 409) {
-        setReassign(true);
-        setErr("사용 중인 분류예요. 다른 분류로 옮긴 뒤 삭제해 주세요.");
-      } else setErr("분류를 삭제하지 못했어요. 대상 분류와 연결 상태를 확인해 주세요.");
+      setErr(isNetworkError(error) ? OFFLINE : "분류 표시 상태를 변경하지 못했어요");
     } finally {
       setBusy(false);
     }
   }
-  const hasChildren = deleting && categories.some((c) => c.parent_id === deleting.id);
+  async function loadUsage(category: Category) {
+    setUsage(null);
+    try {
+      setUsage(await api.categoryUsage(category.id));
+    } catch (error) {
+      setErr(isNetworkError(error) ? OFFLINE : "이 분류를 쓰는 곳을 확인하지 못했어요. 다시 시도해 주세요.");
+    }
+  }
+  function openDelete(category: Category) {
+    setDeleting(category);
+    setTarget("");
+    setErr("");
+    setMessage("");
+    void loadUsage(category);
+  }
+  const hasChildren = deleting !== null && categories.some((c) => c.parent_id === deleting.id);
   const targets = deleting
     ? categories.filter(
         (c) =>
@@ -157,15 +208,62 @@ export default function CategoriesEditor() {
           (!hasChildren || c.parent_id === null),
       )
     : [];
+  const needsTarget = usage !== null && inUse(usage);
+  async function remove() {
+    if (!deleting || busy || usage === null || (needsTarget && !target)) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const result = await api.deleteCategory(deleting.id, needsTarget ? target : undefined);
+      setDeleting(null);
+      for (const prefix of [
+        "categories",
+        "merchant-rules",
+        "transactions",
+        "budgets",
+        "stats",
+        "templates",
+        "recurring",
+      ])
+        invalidate(prefix);
+      const moved = countsText(result.moved ?? ({} as ReassignedCounts));
+      setMessage(
+        needsTarget && moved.length
+          ? `${withRo(nameOf(target))} 옮긴 뒤 분류를 삭제했어요. 옮긴 것: ${moved.join(", ")}`
+          : "분류를 삭제했어요",
+      );
+    } catch (error) {
+      if (isNetworkError(error)) setErr(OFFLINE);
+      else if (isApiError(error) && error.code === "in_use") {
+        setErr("그사이 이 분류를 쓰는 곳이 생겼어요. 옮길 분류를 골라 주세요.");
+        void loadUsage(deleting);
+      } else if (isApiError(error) && error.code === "conflict") {
+        const taken = new Set(categories.filter((c) => c.parent_id === target).map((c) => c.name));
+        const clash = categories.filter((c) => c.parent_id === deleting.id && taken.has(c.name)).map((c) => c.name);
+        setErr(
+          `${nameOf(target)}에 이름이 같은 하위 분류가 있어요${clash.length ? `: ${clash.join(", ")}` : ""}. 이름을 바꾸거나 다른 분류를 골라 주세요.`,
+        );
+      } else if (isApiError(error) && error.code === "invalid_reassign")
+        setErr("하위 분류가 있는 분류는 다른 대분류로만 옮길 수 있어요.");
+      else if (isApiError(error) && error.status === 404) {
+        setErr("이미 삭제됐거나 옮길 분류가 없어요. 목록을 새로 불러왔어요.");
+        invalidate("categories");
+      } else setErr("분류를 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function renderCategory(category: Category, parent: Category | null) {
     const group = siblings(category);
     const index = group.findIndex((c) => c.id === category.id);
+    const groupIds = group.map((c) => c.id);
     return (
       <div
         key={category.id}
         data-category-id={category.id}
-        className={`category-item level-${parent ? 1 : 0}${dragging === category.id ? " category-dragging" : ""}`}
+        className={`category-item level-${parent ? 1 : 0}`}
+        {...(parent ? { "data-reorder-id": category.id, ...drag.itemProps(category.id) } : {})}
       >
         <div className="category-identity">
           <CategoryIcon icon={category.icon} color={parent?.color ?? category.color} />
@@ -178,50 +276,19 @@ export default function CategoriesEditor() {
             label={`${category.name} 순서 드래그`}
             disabled={busy || group.length < 2}
             className="category-drag-handle"
-            onPointerDown={(event) => {
-              if (event.button !== 0) return;
-              drag.current = { category, pointer: event.pointerId };
-              setDragging(category.id);
-              event.currentTarget.setPointerCapture(event.pointerId);
-            }}
-            onPointerCancel={() => {
-              drag.current = null;
-              setDragging(null);
-            }}
-            onLostPointerCapture={() => {
-              drag.current = null;
-              setDragging(null);
-            }}
-            onPointerUp={(event) => {
-              const active = drag.current;
-              drag.current = null;
-              setDragging(null);
-              if (!active || active.pointer !== event.pointerId) return;
-              const id = document
-                .elementFromPoint(event.clientX, event.clientY)
-                ?.closest("[data-category-id]")
-                ?.getAttribute("data-category-id");
-              const destination = categories.find((c) => c.id === id);
-              if (destination) void reorder(active.category, destination);
-            }}
+            {...drag.handleProps(category.id, groupIds)}
           />
           <IconButton
             icon={ArrowUp}
             label={`${category.name} 위로`}
             disabled={busy || index === 0}
-            onClick={() => {
-              const previous = group[index - 1];
-              if (previous) void reorder(category, previous);
-            }}
+            onClick={() => step(category, -1)}
           />
           <IconButton
             icon={ArrowDown}
             label={`${category.name} 아래로`}
             disabled={busy || index === group.length - 1}
-            onClick={() => {
-              const next = group[index + 1];
-              if (next) void reorder(category, next);
-            }}
+            onClick={() => step(category, 1)}
           />
           <label className="category-hidden">
             <input
@@ -250,13 +317,7 @@ export default function CategoriesEditor() {
             variant="danger"
             disabled={busy}
             aria-label={`${category.name} 삭제`}
-            onClick={() => {
-              setDeleting(category);
-              setReassign(false);
-              setTarget("");
-              setErr("");
-              setMessage("");
-            }}
+            onClick={() => openDelete(category)}
           >
             삭제
           </Button>
@@ -264,6 +325,8 @@ export default function CategoriesEditor() {
       </div>
     );
   }
+  const draftChildren = draft?.category ? categories.filter((c) => c.parent_id === draft.category?.id) : [];
+  const parentOptions = draft ? roots.filter((root) => root.id !== draft.category?.id) : [];
   return (
     <div className="screen categories-editor">
       <h1 className="screen-title">분류 관리</h1>
@@ -303,11 +366,17 @@ export default function CategoriesEditor() {
         </div>
       ) : null}
       {!loading && !error && roots.length === 0 ? <p>등록된 분류가 없어요</p> : null}
-      <div className="category-tree" aria-busy={busy}>
+      <div className="category-tree" aria-busy={busy} data-reordering={drag.active || undefined}>
         {roots.map((root) => (
-          <section key={root.id} className="category-group" aria-label={root.name}>
+          <section
+            key={root.id}
+            className="category-group"
+            aria-label={root.name}
+            data-reorder-id={root.id}
+            {...drag.itemProps(root.id)}
+          >
             {renderCategory(root, null)}
-            {root.children.map((child) => renderCategory(child, root))}
+            {ordered(root.children, root.id).map((child) => renderCategory(child, root))}
           </section>
         ))}
       </div>
@@ -320,7 +389,7 @@ export default function CategoriesEditor() {
       {draft ? (
         <Dialog
           open
-          title={draft.category ? "분류 편집" : draft.parent ? "하위 분류 추가" : "분류 추가"}
+          title={draft.category ? "분류 편집" : draft.parentId ? "하위 분류 추가" : "분류 추가"}
           onClose={closeEditor}
           footer={
             <>
@@ -361,8 +430,35 @@ export default function CategoriesEditor() {
                 />
               )}
             </Field>
-            {draft.parent ? (
-              <p className="category-meta">{draft.parent.name} 아래에 표시하며 부모 색상을 사용해요.</p>
+            {draft.category ? (
+              <Field
+                label="상위 분류"
+                hint={
+                  draft.parentId && draftChildren.length
+                    ? `하위 분류 ${draftChildren.length}개도 ${nameOf(draft.parentId)} 아래로 함께 옮겨요.`
+                    : "대분류로 두거나 다른 분류의 하위로 옮길 수 있어요."
+                }
+              >
+                {(control) => (
+                  <Select
+                    {...control}
+                    value={draft.parentId ?? ""}
+                    disabled={busy}
+                    onChange={(event) => setDraft({ ...draft, parentId: event.currentTarget.value || null })}
+                  >
+                    <option value="">대분류로 두기</option>
+                    {parentOptions.map((root) => (
+                      <option key={root.id} value={root.id}>
+                        {root.name}
+                        {root.hidden ? " (숨김)" : ""}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+            ) : null}
+            {draft.parentId ? (
+              <p className="category-meta">{nameOf(draft.parentId)} 아래에 표시하며 부모 색상을 사용해요.</p>
             ) : null}
             <fieldset disabled={busy} className="category-picker">
               <legend>아이콘</legend>
@@ -381,7 +477,7 @@ export default function CategoriesEditor() {
                 ))}
               </div>
             </fieldset>
-            {!draft.parent ? (
+            {!draft.parentId ? (
               <fieldset disabled={busy} className="category-picker">
                 <legend>색상</legend>
                 <div className="category-color-options">
@@ -431,39 +527,55 @@ export default function CategoriesEditor() {
               <Button disabled={busy} onClick={() => setDeleting(null)}>
                 취소
               </Button>
-              <Button variant="danger" disabled={busy || (reassign && !target)} onClick={() => void remove()}>
-                {reassign ? "옮기고 삭제" : "삭제"}
+              <Button
+                variant="danger"
+                disabled={busy || usage === null || (needsTarget && !target)}
+                onClick={() => void remove()}
+              >
+                {needsTarget ? "옮기고 삭제" : "삭제"}
               </Button>
             </>
           }
         >
-          <p>분류를 삭제할까요? 사용 중인 기록이 있으면 다른 분류로 옮길 수 있어요.</p>
-          {reassign ? (
-            <Field label="다른 분류로 옮기기">
-              {(control) => (
-                <Select
-                  {...control}
-                  value={target}
-                  disabled={busy}
-                  onChange={(event) => setTarget(event.currentTarget.value)}
-                >
-                  <option value="">분류 선택</option>
-                  {targets.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.parent_id ? `${categories.find((p) => p.id === c.parent_id)?.name} / ${c.name}` : c.name}
-                    </option>
-                  ))}
-                </Select>
-              )}
-            </Field>
-          ) : null}
-          {reassign && targets.length === 0 ? (
-            <p>옮길 분류가 없어요. 취소하고 같은 유형의 상위 분류를 추가해 주세요.</p>
+          {usage === null && !err ? <p>이 분류를 쓰는 곳을 확인하고 있어요...</p> : null}
+          {usage !== null && !needsTarget ? <p>이 분류를 삭제할까요? 되돌릴 수 없어요.</p> : null}
+          {usage !== null && needsTarget ? (
+            <>
+              <p>이 분류를 쓰는 곳이 있어요. 모두 고른 분류로 옮긴 뒤 삭제해요. 되돌릴 수 없어요.</p>
+              <ul className="category-usage">
+                {countsText(usage).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+              <Field
+                label="옮길 분류"
+                {...(hasChildren ? { hint: "하위 분류가 있어서 대분류로만 옮길 수 있어요." } : {})}
+              >
+                {(control) => (
+                  <Select
+                    {...control}
+                    value={target}
+                    disabled={busy}
+                    onChange={(event) => setTarget(event.currentTarget.value)}
+                  >
+                    <option value="">분류 선택</option>
+                    {targets.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.parent_id ? `${nameOf(c.parent_id)} / ${c.name}` : c.name}
+                        {c.hidden ? " (숨김)" : ""}
+                      </option>
+                    ))}
+                  </Select>
+                )}
+              </Field>
+              {targets.length === 0 ? <p>옮길 분류가 없어요. 취소하고 같은 유형의 상위 분류를 추가해 주세요.</p> : null}
+            </>
           ) : null}
           {err ? (
-            <p role="alert" className="category-error">
-              {err}
-            </p>
+            <div role="alert" className="category-error">
+              <p>{err}</p>
+              {usage === null ? <Button onClick={() => void loadUsage(deleting)}>다시 확인</Button> : null}
+            </div>
           ) : null}
         </Dialog>
       ) : null}
