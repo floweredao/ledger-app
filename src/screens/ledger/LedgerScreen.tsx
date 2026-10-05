@@ -1,7 +1,8 @@
 import { Search } from "lucide-react";
+import { useEffect } from "react";
 import { kstMonth } from "../../../shared/dates";
 import { formatSigned, formatWon } from "../../../shared/money";
-import type { StatsSummary } from "../../../shared/schema";
+import type { Settings, StatsSummary } from "../../../shared/schema";
 import { paths } from "../../api/client";
 import { useApi } from "../../api/hooks";
 import { calendarMonthFilter, calendarYearFilter } from "../../app/periods";
@@ -10,7 +11,7 @@ import { EmptyState } from "../../components/EmptyState";
 import { MonthSwitcher } from "../../components/MonthSwitcher";
 import { SegmentedLinks } from "../../components/SegmentedControl";
 import { Skeleton } from "../../components/Skeleton";
-import { Link, useRoute, useSelectedMonth, useSelectedYear } from "../../router";
+import { Link, navigate, useRoute, useSelectedMonth, useSelectedYear } from "../../router";
 import CalendarView from "./CalendarView";
 import DailyList from "./DailyList";
 import MonthlyView from "./MonthlyView";
@@ -65,6 +66,14 @@ export default function LedgerScreen() {
   const [month, setMonth] = useSelectedMonth();
   const [year, setYear] = useSelectedYear();
   const view: View = route.name === "calendar" ? "calendar" : route.name === "monthly" ? "monthly" : "daily";
+  const settings = useApi<Settings>(paths.settings);
+  // A bare `/` (app start, the 가계부 tab) opens the tab chosen in settings; links with a period stay put.
+  const bare = route.name === "ledger" && route.query.toString() === "";
+  const start = settings.data?.ledger_view ?? (settings.loading ? undefined : "daily");
+  const redirecting = bare && start !== "daily";
+  useEffect(() => {
+    if (bare && (start === "calendar" || start === "monthly")) navigate(`/${start}`, { replace: true });
+  }, [bare, start]);
   const monthForLinks = view === "monthly" && month.slice(0, 4) !== year ? `${year}-${kstMonth().slice(5)}` : month;
 
   return (
@@ -93,7 +102,8 @@ export default function LedgerScreen() {
           },
         ]}
       />
-      {view === "daily" ? <DailyList /> : null}
+      {redirecting ? <Skeleton rows={4} label="가계부 여는 중" /> : null}
+      {view === "daily" && !redirecting ? <DailyList /> : null}
       {view === "calendar" ? <CalendarView /> : null}
       {view === "monthly" ? <MonthlyView /> : null}
     </div>

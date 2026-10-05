@@ -1,6 +1,6 @@
 import "./preferences.css";
 import { type FormEvent, useEffect, useRef, useState } from "react";
-import { type Asset, type Settings, type SettingsPatch, ThemeSchema } from "../../../shared/schema";
+import { type Asset, LedgerViewSchema, type Settings, type SettingsPatch, ThemeSchema } from "../../../shared/schema";
 import { api, type Items, paths } from "../../api/client";
 import { invalidate, useApi } from "../../api/hooks";
 import { Button } from "../../components/Button";
@@ -18,6 +18,7 @@ export default function Preferences() {
     owner_name: "",
     theme: "system",
     default_asset_id: null,
+    ledger_view: "daily",
   });
   const [errors, setErrors] = useState<Partial<Record<keyof Draft, string>>>({});
   const [saving, setSaving] = useState(false);
@@ -128,6 +129,22 @@ export default function Preferences() {
               <option value="system">시스템 설정</option>
               <option value="light">밝음</option>
               <option value="dark">어두움</option>
+            </Select>
+          )}
+        </Field>
+        <Field label="가계부 첫 화면" hint="가계부를 열 때 처음 보여 줄 보기예요.">
+          {(control) => (
+            <Select
+              {...control}
+              value={draft.ledger_view}
+              onChange={(event) => {
+                const parsed = LedgerViewSchema.safeParse(event.currentTarget.value);
+                if (parsed.success) change("ledger_view", parsed.data);
+              }}
+            >
+              <option value="daily">일일</option>
+              <option value="calendar">달력</option>
+              <option value="monthly">월별</option>
             </Select>
           )}
         </Field>

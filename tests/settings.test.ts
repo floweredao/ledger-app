@@ -144,6 +144,21 @@ describe("Settings", () => {
       expect(response.status).toBe(400);
     });
 
+    it("should default ledger_view to daily and persist the chosen ledger tab", async () => {
+      const fetch = await authed(testApp);
+      expect((await (await fetch("/api/v1/settings")).json()).ledger_view).toBe("daily");
+      const response = await fetch("/api/v1/settings", { method: "PATCH", body: { ledger_view: "calendar" } });
+      expect(response.status).toBe(200);
+      expect((await response.json()).ledger_view).toBe("calendar");
+      expect((await (await fetch("/api/v1/settings")).json()).ledger_view).toBe("calendar");
+    });
+
+    it("should reject an unknown ledger_view", async () => {
+      const fetch = await authed(testApp);
+      const response = await fetch("/api/v1/settings", { method: "PATCH", body: { ledger_view: "weekly" } });
+      expect(response.status).toBe(400);
+    });
+
     it("should allow partial updates", async () => {
       const fetch = await authed(testApp);
       const response = await fetch("/api/v1/settings", {

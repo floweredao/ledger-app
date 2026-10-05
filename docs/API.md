@@ -262,10 +262,10 @@ TemplatePayload는 `{type, amount?, is_refund?, asset_id?, to_asset_id?, categor
 ## 설정
 
 ### `GET /settings`
-응답 `{month_start_day, owner_name, theme, default_asset_id}`. 저장값이 없으면 기본값 `{1, "", "system", null}`이에요.
+응답 `{month_start_day, owner_name, theme, default_asset_id, ledger_view}`. 저장값이 없으면 기본값 `{1, "", "system", null, "daily"}`이에요. `ledger_view`는 가계부를 열 때(`/`로 들어올 때) 처음 보여 줄 탭이에요.
 
 ### `PATCH /settings`
-위 필드의 일부. `month_start_day`는 1~28, `owner_name`은 40자까지, `theme`은 `system|light|dark`. 없는 `default_asset_id`는 400 `invalid_input`이에요. 저장은 한 트랜잭션이고, `owner_name`이 바뀌면 같은 트랜잭션 안에서 카카오뱅크 거래를 다시 분류해요(사용자가 잠근 필드는 빼고). 응답은 전체 설정이에요.
+위 필드의 일부. `month_start_day`는 1~28, `owner_name`은 40자까지, `theme`은 `system|light|dark`, `ledger_view`는 `daily|calendar|monthly`. 없는 `default_asset_id`는 400 `invalid_input`이에요. 저장은 한 트랜잭션이고, `owner_name`이 바뀌면 같은 트랜잭션 안에서 카카오뱅크 거래를 다시 분류해요(사용자가 잠근 필드는 빼고). 응답은 전체 설정이에요.
 
 ## 동기화(카카오뱅크)
 

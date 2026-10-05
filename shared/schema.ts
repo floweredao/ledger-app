@@ -25,6 +25,9 @@ export const SourceSchema = z.enum([
 ]);
 export const ThemeSchema = z.enum(["system", "light", "dark"]);
 export const FreqSchema = z.enum(["daily", "weekly", "monthly", "yearly"]);
+/** The ledger tab `/` opens on. */
+export const LedgerViewSchema = z.enum(["daily", "calendar", "monthly"]);
+export type LedgerView = z.infer<typeof LedgerViewSchema>;
 export type TransactionType = z.infer<typeof TransactionTypeSchema>;
 export type CategoryType = z.infer<typeof CategoryTypeSchema>;
 export type AssetKind = z.infer<typeof AssetKindSchema>;
@@ -332,6 +335,7 @@ export const SettingsSchema = z.object({
   owner_name: z.string().max(40),
   theme: ThemeSchema,
   default_asset_id: nullableId,
+  ledger_view: LedgerViewSchema,
 });
 export const SettingsPatchSchema = SettingsSchema.partial().strict();
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -341,6 +345,7 @@ export const DEFAULT_SETTINGS: Settings = {
   owner_name: "",
   theme: "system",
   default_asset_id: null,
+  ledger_view: "daily",
 };
 
 export const SessionStateSchema = z.object({

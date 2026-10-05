@@ -92,6 +92,19 @@ describe("Preferences", () => {
     expect(writes).toHaveLength(1);
     expect(settings).toMatchObject({ default_asset_id: "asset-bank", month_start_day: 25 });
   });
+  test("chooses the ledger tab the app opens on", async () => {
+    render(<Preferences />);
+    await act(async () => {
+      await Promise.all([settingsRead.promise, assetsRead.promise]);
+    });
+    fireEvent.change(screen.getByLabelText("가계부 첫 화면"), { target: { value: "monthly" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "저장" }));
+      await settingsWrite.promise;
+    });
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({ ledger_view: "monthly" });
+  });
   test("a blank month start is rejected without writing settings", async () => {
     render(<Preferences />);
     await act(async () => {

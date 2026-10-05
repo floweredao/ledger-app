@@ -127,6 +127,7 @@ describe("openDb", () => {
     expect(count(db, "SELECT count(*) AS n FROM assets WHERE kind='cash' AND name='현금'")).toBe(1);
     expect(db.query("SELECT key, value FROM settings ORDER BY key").all()).toEqual([
       { key: "default_asset_id", value: "null" },
+      { key: "ledger_view", value: '"daily"' },
       { key: "month_start_day", value: "1" },
       { key: "owner_name", value: '""' },
       { key: "theme", value: '"system"' },
