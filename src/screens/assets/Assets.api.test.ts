@@ -47,6 +47,15 @@ test("summary includes kind balance and exact totals", async () => {
   expect(result.assets.find((item) => item.id === bank.id)?.balance).toBe(100000);
   expect(result.totals).toEqual({ assets: 100000, debts: 0, net_worth: 100000 });
 });
+test("importer self-transfer placeholder never counts as debt", async () => {
+  await create({ name: "테스트은행", kind: "bank", opening_balance: 100000 });
+  db.query(
+    "INSERT INTO assets(id,name,kind,external_ref,opening_balance,created_at,updated_at) VALUES('self-other','내 다른 계좌','other','self:other',-30000,'2026-01-01T00:00:00+09:00','2026-01-01T00:00:00+09:00')",
+  ).run();
+  const result = await summary();
+  expect(result.assets.find((item) => item.id === "self-other")?.balance).toBe(-30000);
+  expect(result.totals).toEqual({ assets: 100000, debts: 0, net_worth: 100000 });
+});
 test("bank summary exposes nullable sync fields without inventing reports", async () => {
   const bank = await create({ name: "테스트은행", kind: "bank", opening_balance: 100000 });
   const result = (await summary()).assets.find((item) => item.id === bank.id);

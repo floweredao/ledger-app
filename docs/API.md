@@ -147,7 +147,7 @@ AssetSummaryRow는 Asset에 다음을 더해요: `balance`, `usage`(카드의 �
 쿼리 `include_hidden`(`true|false|1|0`). 응답 `{items: AssetSummaryRow[]}`.
 
 ### `GET /assets/summary`
-쿼리 `include_hidden`. 응답 `{assets: AssetSummaryRow[], totals: {assets, debts, net_worth}}`. 합계에서 체크카드는 빼고, 양수 잔액은 `assets`, 음수 잔액의 절댓값은 `debts`에 더해요.
+쿼리 `include_hidden`. 응답 `{assets: AssetSummaryRow[], totals: {assets, debts, net_worth}}`. 합계에서 체크카드와 가져오기가 본인 이체 상대로 만든 "내 다른 계좌"(`external_ref` `self:other`, 잔액을 알 수 없는 자리표시)는 빼고, 양수 잔액은 `assets`, 음수 잔액의 절댓값은 `debts`에 더해요.
 
 ### `POST /assets`
 본문 `name(1~60자), kind`, 선택 `group_name`(40자, 기본 ""), `opening_balance`(기본 0, 음수 가능), `opening_date`(기본 null, 유효한 `YYYY-MM-DD` 또는 null), `linked_asset_id, settlement_day, payment_day, performance_target, sort, hidden`. 카드 필드는 카드 자산에만 쓸 수 있고, 체크카드는 연결 계좌가 필수, 연결 대상은 `bank` 또는 `savings`여야 해요(아니면 400 `invalid_asset`). 잘못된 기준일은 400 `invalid_input`이에요. 201 `Asset`.

@@ -13,6 +13,8 @@ import {
 import { ApiError } from "../http";
 import { insertTransaction } from "./tx-core";
 
+// The importer books transfers to the owner's untracked accounts against this placeholder; its balance is unknown, not a debt.
+export const SELF_TRANSFER_REF = "self:other";
 const AssetRowSchema = AssetSchema.extend({ hidden: z.number().transform((value) => value === 1) });
 export const CardPaymentSchema = z
   .object({
@@ -266,7 +268,7 @@ export function assetSummary(db: Database, today = kstDate(), includeHidden = fa
   let totalAssets = 0;
   let debts = 0;
   for (const row of rows) {
-    if (row.kind === "check_card") continue;
+    if (row.kind === "check_card" || row.external_ref === SELF_TRANSFER_REF) continue;
     totalAssets += Math.max(0, row.balance);
     debts += Math.max(0, -row.balance);
   }

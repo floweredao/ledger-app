@@ -2,6 +2,7 @@ import type { Database } from "bun:sqlite";
 import { nowKst } from "../../shared/dates";
 import { merchantKey } from "../../shared/merchant";
 import { type TransactionInput, TransactionInputSchema } from "../../shared/schema";
+import { SELF_TRANSFER_REF } from "../domain/assets";
 import type { InsertOptions } from "../domain/tx-core";
 import { classify, refundCategory } from "./classify";
 import { type Entry, sourceKey } from "./source";
@@ -69,7 +70,7 @@ export function mapEntry(db: Database, entry: Entry, previousBalance: number | n
   let assetId = bank;
   let toAssetId: string | null = null;
   if (ownTransfer) {
-    const other = asset(db, "self:other", "내 다른 계좌", "other", 0, null);
+    const other = asset(db, SELF_TRANSFER_REF, "내 다른 계좌", "other", 0, null);
     type = "transfer";
     assetId = entry.amount < 0 ? bank : other;
     toAssetId = entry.amount < 0 ? other : bank;
