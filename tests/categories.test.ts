@@ -98,7 +98,7 @@ describe("categories and merchant rules API", () => {
     expect(tooDeep.status).toBe(400);
   });
 
-  test("deletes unused categories and requires reassignment for references", async () => {
+  test("deletes categories and can reassign their references", async () => {
     const { testApp, api } = await setup();
     const expense = await json(await api("/api/v1/categories?type=expense"));
     const parent = expense.items.find((item) => item.name === "식비");
@@ -120,10 +120,6 @@ describe("categories and merchant rules API", () => {
     testApp.db
       .query("INSERT INTO merchant_rules(merchant_key,category_id,type,updated_at) VALUES('samplecafe',?,'expense',?)")
       .run(childId, "2026-10-03T10:00:00+09:00");
-
-    const blocked = await api(`/api/v1/categories/${childId}`, { method: "DELETE" });
-    expect(blocked.status).toBe(409);
-    expect((await json(blocked)).error?.code).toBe("in_use");
 
     const reassigned = await api(`/api/v1/categories/${childId}?reassign_to=${targetId}`, { method: "DELETE" });
     expect(reassigned.status).toBe(200);
@@ -311,6 +307,7 @@ describe("moving categories and reassigning before delete", () => {
     expect(await usage.json()).toEqual({
       transactions: 2,
       deleted_transactions: 1,
+      total_transactions: 2,
       budgets: 1,
       merchant_rules: 1,
       recurring_rules: 0,
@@ -325,5 +322,70 @@ describe("moving categories and reassigning before delete", () => {
     });
     expect((await tree(api)).find((c) => c.id === target.id)?.children.map((c) => c.id)).toEqual([kid.id]);
     expect((await api(`/api/v1/categories/${a.id}/usage`)).status).toBe(404);
+  });
+
+  test("deleting without a target leaves its records uncategorized and removes its children", async () => {
+    const { testApp, api } = await setup();
+    const a = await make(api, "지울상위");
+    const kid = await make(api, "지울하위", a.id);
+    const keep = await make(api, "남길분류");
+    const asset = testApp.db.query<{ id: string }, []>("SELECT id FROM assets LIMIT 1").get();
+    if (!asset) throw new Error("Seed asset missing");
+    const insertTx = testApp.db.query(
+      "INSERT INTO transactions(id,type,occurred_at,amount,asset_id,category_id,deleted_at,created_at,updated_at) VALUES(?, 'expense', ?, 1000, ?, ?, ?, ?, ?)",
+    );
+    const live = Bun.randomUUIDv7();
+    const childTx = Bun.randomUUIDv7();
+    const trashed = Bun.randomUUIDv7();
+    const kept = Bun.randomUUIDv7();
+    insertTx.run(live, stamp, asset.id, a.id, null, stamp, stamp);
+    insertTx.run(childTx, stamp, asset.id, kid.id, null, stamp, stamp);
+    insertTx.run(trashed, stamp, asset.id, kid.id, stamp, stamp, stamp);
+    insertTx.run(kept, stamp, asset.id, keep.id, null, stamp, stamp);
+    const budget = testApp.db.query("INSERT INTO budgets(id,category_id,month,amount) VALUES(?,?,?,5000)");
+    budget.run(Bun.randomUUIDv7(), a.id, "");
+    budget.run(Bun.randomUUIDv7(), kid.id, "2026-10");
+    budget.run(Bun.randomUUIDv7(), keep.id, "");
+    testApp.db
+      .query("INSERT INTO merchant_rules(merchant_key,category_id,type,updated_at) VALUES(?,?,'expense',?)")
+      .run("테스트마트", kid.id, stamp);
+    testApp.db
+      .query("INSERT INTO templates(id,name,payload,sort,use_count,created_at,updated_at) VALUES(?,?,?,0,0,?,?)")
+      .run("tpl", "샘플카페", JSON.stringify({ type: "expense", amount: 3000, category_id: a.id }), stamp, stamp);
+    testApp.db
+      .query(
+        "INSERT INTO recurring_rules(id,template,freq,start_date,created_at,updated_at) VALUES(?,?,'monthly','2026-10-01',?,?)",
+      )
+      .run("rule", JSON.stringify({ type: "expense", amount: 9000, category_id: kid.id }), stamp, stamp);
+
+    const usage = (await (await api(`/api/v1/categories/${a.id}/usage`)).json()) as { total_transactions: number };
+    expect(usage.total_transactions).toBe(2);
+    const removed = await api(`/api/v1/categories/${a.id}`, { method: "DELETE" });
+    expect(removed.status).toBe(200);
+    expect(await removed.json()).toEqual({
+      ok: true,
+      cleared: { transactions: 3, budgets: 2, merchant_rules: 1, recurring_rules: 1, templates: 1, children: 1 },
+    });
+
+    const ids = (await tree(api)).flatMap((c) => [c.id, ...c.children.map((child) => child.id)]);
+    expect(ids).not.toContain(a.id);
+    expect(ids).not.toContain(kid.id);
+    expect(ids).toContain(keep.id);
+    const categoryOf = (id: string) =>
+      testApp.db
+        .query<{ category_id: string | null }, [string]>("SELECT category_id FROM transactions WHERE id=?")
+        .get(id)?.category_id;
+    expect([live, childTx, trashed].map(categoryOf)).toEqual([null, null, null]);
+    expect(categoryOf(kept)).toBe(keep.id);
+    expect(testApp.db.query("SELECT category_id FROM budgets").all()).toEqual([{ category_id: keep.id }]);
+    expect(testApp.db.query("SELECT 1 FROM merchant_rules").all()).toEqual([]);
+    const payload = (sql: string) =>
+      JSON.parse(testApp.db.query<{ v: string }, []>(sql).get()?.v ?? "{}") as Record<string, unknown>;
+    expect(payload("SELECT payload AS v FROM templates")).toEqual({ type: "expense", amount: 3000, category_id: null });
+    expect(payload("SELECT template AS v FROM recurring_rules")).toEqual({
+      type: "expense",
+      amount: 9000,
+      category_id: null,
+    });
   });
 });

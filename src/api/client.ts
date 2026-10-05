@@ -138,11 +138,7 @@ export const api = {
 
   createCategory: (input: CategoryInput) => send<Category>("POST", "categories", input),
   patchCategory: (id: string, patch: CategoryPatch) => send<Category>("PATCH", `categories/${enc(id)}`, patch),
-  deleteCategory: (id: string, reassignTo?: string) =>
-    send<{ ok: true; moved: ReassignedCounts }>(
-      "DELETE",
-      withQuery(`categories/${enc(id)}`, { reassign_to: reassignTo }),
-    ),
+  deleteCategory: (id: string) => send<{ ok: true; cleared: ReassignedCounts }>("DELETE", `categories/${enc(id)}`),
   categoryUsage: (id: string) => apiJson<CategoryUsage>(`categories/${enc(id)}/usage`),
   reorderCategories: (ids: readonly string[]) => send<{ ok: true }>("POST", "categories/reorder", { ids }),
   deleteMerchantRule: (merchantKey: string, type?: TransactionType) =>

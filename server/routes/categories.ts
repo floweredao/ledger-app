@@ -46,8 +46,7 @@ export const categoriesRoutes = new Hono<AppBindings>()
   })
   .get("/categories/:id/usage", (c) => c.json(categoryUsage(c.get("db"), c.req.param("id"))))
   .delete("/categories/:id", (c) => {
-    const moved = deleteCategory(c.get("db"), c.req.param("id"), c.req.query("reassign_to"));
-    return c.json({ ok: true, moved });
+    return c.json({ ok: true, ...deleteCategory(c.get("db"), c.req.param("id"), c.req.query("reassign_to")) });
   })
   .get("/merchant-rules", (c) => c.json({ items: listMerchantRules(c.get("db")) }))
   .delete("/merchant-rules/:key", (c) => {

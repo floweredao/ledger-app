@@ -62,6 +62,7 @@ beforeEach(async () => {
   usage = {
     transactions: 0,
     deleted_transactions: 0,
+    total_transactions: 0,
     budgets: 0,
     merchant_rules: 0,
     recurring_rules: 0,
@@ -111,7 +112,7 @@ beforeEach(async () => {
       return json({ error: { code: "in_use", message: "Category is referenced" } }, 409);
     if (deleteError === "network") throw new TypeError("Failed to fetch");
     if (deleteError) return deleteError;
-    rows = rows.filter((c) => c.id !== id);
+    rows = rows.filter((c) => c.id !== id && c.parent_id !== id);
     const moved = {
       transactions: usage.transactions + usage.deleted_transactions,
       budgets: usage.budgets,
@@ -120,7 +121,7 @@ beforeEach(async () => {
       templates: usage.templates,
       children: usage.children,
     };
-    return json({ ok: true, moved });
+    return json(url.searchParams.has("reassign_to") ? { ok: true, moved } : { ok: true, cleared: moved });
   }) as typeof fetch;
 });
 afterEach(async () => {
@@ -243,7 +244,7 @@ describe("CategoriesEditor", () => {
     render(<CategoriesEditor />);
     fireEvent.click((await row("외식")).getByRole("button", { name: "외식 삭제" }));
     expect(mutations()).toHaveLength(0);
-    const confirm = within(screen.getByRole("dialog")).getByRole("button", { name: "삭제" });
+    const confirm = within(screen.getByRole("alertdialog")).getByRole("button", { name: "삭제" });
     await waitFor(() => expect((confirm as HTMLButtonElement).disabled).toBe(false));
     const requestFetch = globalThis.fetch;
     const refreshGate = Promise.withResolvers<void>();
@@ -256,7 +257,7 @@ describe("CategoriesEditor", () => {
     );
     const removed = waitForElementToBeRemoved(() => screen.queryByText("외식"));
     try {
-      fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "삭제" }));
+      fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "삭제" }));
       await screen.findByText("분류를 삭제했어요");
       refreshGate.resolve();
       await removed;
@@ -267,40 +268,35 @@ describe("CategoriesEditor", () => {
       globalThis.fetch = requestFetch;
     }
   });
-  test("an in-use category shows what uses it, then moves everything and deletes", async () => {
-    usage = { ...usage, transactions: 3, deleted_transactions: 1, merchant_rules: 2, children: 1 };
+  test("an in-use category asks once and leaves its records uncategorized", async () => {
+    usage = {
+      ...usage,
+      transactions: 2,
+      total_transactions: 3,
+      deleted_transactions: 1,
+      merchant_rules: 2,
+      children: 1,
+    };
     render(<CategoriesEditor />);
     fireEvent.click((await row("식비")).getByRole("button", { name: "식비 삭제" }));
-    const dialog = within(await screen.findByRole("dialog"));
-    expect(await dialog.findByText(/기록 3건/)).toBeTruthy();
-    expect(dialog.getByText(/가맹점 규칙 2개/)).toBeTruthy();
-    expect(dialog.getByText(/하위 분류 1개/)).toBeTruthy();
-    const select = dialog.getByLabelText("옮길 분류");
-    expect(within(select).queryByRole("option", { name: "급여" })).toBeNull();
-    expect(within(select).queryByRole("option", { name: "외식" })).toBeNull();
-    fireEvent.change(select, { target: { value: "transport" } });
-    fireEvent.click(dialog.getByRole("button", { name: "옮기고 삭제" }));
-    expect(await screen.findByText(/교통으로 옮긴 뒤.*기록 4건/)).toBeTruthy();
-    expect(mutations()[0]?.url.searchParams.get("reassign_to")).toBe("transport");
+    const dialog = within(await screen.findByRole("alertdialog"));
+    expect(await dialog.findByText("기록 3건은 분류 없음으로 바뀌어요.")).toBeTruthy();
+    expect(dialog.getByText("하위 분류 1개도 함께 지워져요.")).toBeTruthy();
+    expect(dialog.queryByLabelText("옮길 분류")).toBeNull();
+    expect(dialog.queryByText(/가맹점 규칙/)).toBeNull();
+    fireEvent.click(dialog.getByRole("button", { name: "삭제" }));
+    expect(await screen.findByText("분류를 삭제했어요. 기록 3건은 분류 없음이 됐어요.")).toBeTruthy();
+    expect(mutations()).toHaveLength(1);
+    expect(mutations()[0]?.url.searchParams.has("reassign_to")).toBe(false);
+    await waitFor(() => expect(screen.queryByText("외식")).toBeNull());
   });
   test("a dropped connection while deleting says so instead of blaming the category", async () => {
     deleteError = "network";
     render(<CategoriesEditor />);
     fireEvent.click((await row("외식")).getByRole("button", { name: "외식 삭제" }));
-    const dialog = within(await screen.findByRole("dialog"));
+    const dialog = within(await screen.findByRole("alertdialog"));
     fireEvent.click(await dialog.findByRole("button", { name: "삭제" }));
     expect((await dialog.findByRole("alert")).textContent).toContain("서버에 연결하지 못했어요");
-  });
-  test("a child-name clash names the clashing children", async () => {
-    rows.push(category("dining2", "외식", { parent_id: "transport" }));
-    usage = { ...usage, transactions: 1, children: 1 };
-    deleteError = json({ error: { code: "conflict", message: "A category with this name already exists" } }, 409);
-    render(<CategoriesEditor />);
-    fireEvent.click((await row("식비")).getByRole("button", { name: "식비 삭제" }));
-    const dialog = within(await screen.findByRole("dialog"));
-    fireEvent.change(await dialog.findByLabelText("옮길 분류"), { target: { value: "transport" } });
-    fireEvent.click(dialog.getByRole("button", { name: "옮기고 삭제" }));
-    expect((await dialog.findByRole("alert")).textContent).toContain("외식");
   });
   test("the editor moves a category under another parent", async () => {
     render(<CategoriesEditor />);

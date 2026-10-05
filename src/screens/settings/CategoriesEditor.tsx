@@ -1,6 +1,6 @@
 import { ArrowDown, ArrowUp, GripVertical, Plus } from "lucide-react";
 import { useRef, useState } from "react";
-import type { Category, CategoryNode, CategoryType, CategoryUsage, ReassignedCounts } from "../../../shared/schema";
+import type { Category, CategoryNode, CategoryType, CategoryUsage } from "../../../shared/schema";
 import { api, isApiError, isNetworkError, paths } from "../../api/client";
 import { invalidate, useApi } from "../../api/hooks";
 import { Button, IconButton } from "../../components/Button";
@@ -19,27 +19,7 @@ type Draft = {
 };
 
 const OFFLINE = "서버에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.";
-const USAGE_LABELS: readonly (readonly [keyof CategoryUsage, string, string])[] = [
-  ["transactions", "기록", "건"],
-  ["deleted_transactions", "휴지통의 기록", "건"],
-  ["budgets", "예산", "개"],
-  ["merchant_rules", "가맹점 규칙", "개"],
-  ["recurring_rules", "반복 기록", "개"],
-  ["templates", "즐겨찾기", "개"],
-  ["children", "하위 분류", "개"],
-];
-const countsText = (counts: Partial<Record<keyof CategoryUsage, number>>) =>
-  USAGE_LABELS.flatMap(([key, label, unit]) => ((counts[key] ?? 0) > 0 ? [`${label} ${counts[key]}${unit}`] : []));
-const inUse = (usage: CategoryUsage) => countsText(usage).length > 0;
 const groupKey = (parentId: string | null) => parentId ?? "";
-/** `교통` -> `교통으로`, `카페` -> `카페로` (ㄹ받침도 `로`). */
-function withRo(name: string): string {
-  const code = name.charCodeAt(name.length - 1) - 0xac00;
-  if (code < 0 || code > 11171) return `${name}(으)로`;
-  const final = code % 28;
-  return `${name}${final === 0 || final === 8 ? "로" : "으로"}`;
-}
-
 export default function CategoriesEditor() {
   const [type, setType] = useState<CategoryType>("expense");
   const { data, loading, error, offline, reload } = useApi<{ items: CategoryNode[] }>(
@@ -49,8 +29,8 @@ export default function CategoriesEditor() {
   const original = useRef<Draft | null>(null);
   const [discard, setDiscard] = useState(false);
   const [deleting, setDeleting] = useState<Category | null>(null);
-  const [usage, setUsage] = useState<CategoryUsage | null>(null);
-  const [target, setTarget] = useState("");
+  const [usage, setUsage] = useState<CategoryUsage | "failed" | null>(null);
+  const deleteCancel = useRef<HTMLButtonElement>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [err, setErr] = useState("");
@@ -187,34 +167,25 @@ export default function CategoriesEditor() {
     setUsage(null);
     try {
       setUsage(await api.categoryUsage(category.id));
-    } catch (error) {
-      setErr(isNetworkError(error) ? OFFLINE : "이 분류를 쓰는 곳을 확인하지 못했어요. 다시 시도해 주세요.");
+    } catch {
+      // The count is only informative: the dialog falls back to a sentence without it and delete still works.
+      setUsage("failed");
     }
   }
   function openDelete(category: Category) {
     setDeleting(category);
-    setTarget("");
     setErr("");
     setMessage("");
     void loadUsage(category);
   }
-  const hasChildren = deleting !== null && categories.some((c) => c.parent_id === deleting.id);
-  const targets = deleting
-    ? categories.filter(
-        (c) =>
-          c.id !== deleting.id &&
-          c.type === deleting.type &&
-          c.parent_id !== deleting.id &&
-          (!hasChildren || c.parent_id === null),
-      )
-    : [];
-  const needsTarget = usage !== null && inUse(usage);
+  const childCount = deleting ? categories.filter((c) => c.parent_id === deleting.id).length : 0;
+  const recordCount = usage !== null && usage !== "failed" ? usage.total_transactions : null;
   async function remove() {
-    if (!deleting || busy || usage === null || (needsTarget && !target)) return;
+    if (!deleting || busy) return;
     setBusy(true);
     setErr("");
     try {
-      const result = await api.deleteCategory(deleting.id, needsTarget ? target : undefined);
+      await api.deleteCategory(deleting.id);
       setDeleting(null);
       for (const prefix of [
         "categories",
@@ -226,27 +197,11 @@ export default function CategoriesEditor() {
         "recurring",
       ])
         invalidate(prefix);
-      const moved = countsText(result.moved ?? ({} as ReassignedCounts));
-      setMessage(
-        needsTarget && moved.length
-          ? `${withRo(nameOf(target))} 옮긴 뒤 분류를 삭제했어요. 옮긴 것: ${moved.join(", ")}`
-          : "분류를 삭제했어요",
-      );
+      setMessage(recordCount ? `분류를 삭제했어요. 기록 ${recordCount}건은 분류 없음이 됐어요.` : "분류를 삭제했어요");
     } catch (error) {
       if (isNetworkError(error)) setErr(OFFLINE);
-      else if (isApiError(error) && error.code === "in_use") {
-        setErr("그사이 이 분류를 쓰는 곳이 생겼어요. 옮길 분류를 골라 주세요.");
-        void loadUsage(deleting);
-      } else if (isApiError(error) && error.code === "conflict") {
-        const taken = new Set(categories.filter((c) => c.parent_id === target).map((c) => c.name));
-        const clash = categories.filter((c) => c.parent_id === deleting.id && taken.has(c.name)).map((c) => c.name);
-        setErr(
-          `${nameOf(target)}에 이름이 같은 하위 분류가 있어요${clash.length ? `: ${clash.join(", ")}` : ""}. 이름을 바꾸거나 다른 분류를 골라 주세요.`,
-        );
-      } else if (isApiError(error) && error.code === "invalid_reassign")
-        setErr("하위 분류가 있는 분류는 다른 대분류로만 옮길 수 있어요.");
       else if (isApiError(error) && error.status === 404) {
-        setErr("이미 삭제됐거나 옮길 분류가 없어요. 목록을 새로 불러왔어요.");
+        setErr("이미 삭제된 분류예요. 목록을 새로 불러왔어요.");
         invalidate("categories");
       } else setErr("분류를 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.");
     } finally {
@@ -518,64 +473,30 @@ export default function CategoriesEditor() {
       {deleting ? (
         <Dialog
           open
-          title={`${deleting.name} 삭제`}
+          role="alertdialog"
+          initialFocusRef={deleteCancel}
+          title={`${deleting.name} 분류를 지울까요?`}
           onClose={() => {
             if (!busy) setDeleting(null);
           }}
           footer={
             <>
-              <Button disabled={busy} onClick={() => setDeleting(null)}>
+              <Button ref={deleteCancel} disabled={busy} onClick={() => setDeleting(null)}>
                 취소
               </Button>
-              <Button
-                variant="danger"
-                disabled={busy || usage === null || (needsTarget && !target)}
-                onClick={() => void remove()}
-              >
-                {needsTarget ? "옮기고 삭제" : "삭제"}
+              <Button variant="danger" disabled={busy} onClick={() => void remove()}>
+                삭제
               </Button>
             </>
           }
         >
-          {usage === null && !err ? <p>이 분류를 쓰는 곳을 확인하고 있어요...</p> : null}
-          {usage !== null && !needsTarget ? <p>이 분류를 삭제할까요? 되돌릴 수 없어요.</p> : null}
-          {usage !== null && needsTarget ? (
-            <>
-              <p>이 분류를 쓰는 곳이 있어요. 모두 고른 분류로 옮긴 뒤 삭제해요. 되돌릴 수 없어요.</p>
-              <ul className="category-usage">
-                {countsText(usage).map((line) => (
-                  <li key={line}>{line}</li>
-                ))}
-              </ul>
-              <Field
-                label="옮길 분류"
-                {...(hasChildren ? { hint: "하위 분류가 있어서 대분류로만 옮길 수 있어요." } : {})}
-              >
-                {(control) => (
-                  <Select
-                    {...control}
-                    value={target}
-                    disabled={busy}
-                    onChange={(event) => setTarget(event.currentTarget.value)}
-                  >
-                    <option value="">분류 선택</option>
-                    {targets.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.parent_id ? `${nameOf(c.parent_id)} / ${c.name}` : c.name}
-                        {c.hidden ? " (숨김)" : ""}
-                      </option>
-                    ))}
-                  </Select>
-                )}
-              </Field>
-              {targets.length === 0 ? <p>옮길 분류가 없어요. 취소하고 같은 유형의 상위 분류를 추가해 주세요.</p> : null}
-            </>
-          ) : null}
+          {usage === "failed" ? <p>이 분류의 기록은 분류 없음으로 바뀌어요.</p> : null}
+          {recordCount ? <p>기록 {recordCount}건은 분류 없음으로 바뀌어요.</p> : null}
+          {childCount ? <p>하위 분류 {childCount}개도 함께 지워져요.</p> : null}
           {err ? (
-            <div role="alert" className="category-error">
-              <p>{err}</p>
-              {usage === null ? <Button onClick={() => void loadUsage(deleting)}>다시 확인</Button> : null}
-            </div>
+            <p role="alert" className="category-error">
+              {err}
+            </p>
           ) : null}
         </Dialog>
       ) : null}

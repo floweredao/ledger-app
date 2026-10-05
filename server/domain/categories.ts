@@ -148,6 +148,9 @@ export function categoryUsage(db: Database, id: string): CategoryUsage {
     deleted_transactions: count(
       "SELECT count(*) AS n FROM transactions WHERE category_id=? AND deleted_at IS NOT NULL",
     ),
+    total_transactions: count(
+      "SELECT count(*) AS n FROM transactions WHERE deleted_at IS NULL AND category_id IN (SELECT id FROM categories WHERE id=?1 OR parent_id=?1)",
+    ),
     budgets: count("SELECT count(*) AS n FROM budgets WHERE category_id=?"),
     merchant_rules: count("SELECT count(*) AS n FROM merchant_rules WHERE category_id=?"),
     recurring_rules: count("SELECT count(*) AS n FROM recurring_rules WHERE json_extract(template,'$.category_id')=?"),
@@ -171,24 +174,61 @@ export function reorderCategories(db: Database, value: unknown): void {
   }).immediate();
 }
 
-export function deleteCategory(db: Database, id: string, reassignTo?: string): ReassignedCounts {
-  const category = getCategory(db, id);
-  const childRows = db.query<{ id: string }, [string]>("SELECT id FROM categories WHERE parent_id=?").all(id);
-  const hasRefs = (categoryId: string) =>
-    Boolean(
-      db.query("SELECT 1 FROM transactions WHERE category_id=? LIMIT 1").get(categoryId) ||
-        db.query("SELECT 1 FROM budgets WHERE category_id=? LIMIT 1").get(categoryId) ||
-        db.query("SELECT 1 FROM merchant_rules WHERE category_id=? LIMIT 1").get(categoryId) ||
-        db
-          .query("SELECT 1 FROM recurring_rules WHERE json_extract(template,'$.category_id')=? LIMIT 1")
-          .get(categoryId) ||
-        db.query("SELECT 1 FROM templates WHERE json_extract(payload,'$.category_id')=? LIMIT 1").get(categoryId),
-    );
-  if (!reassignTo) {
-    if (childRows.length || hasRefs(id)) throw new ApiError(409, "in_use", "Category is referenced by other data");
+/**
+ * Deletes a category and its children in one transaction. Their records (trash included), recurring rules and
+ * favorites keep everything but the category, which becomes empty; budgets and merchant rules for them are removed.
+ */
+function deleteLeavingUncategorized(db: Database, id: string): ReassignedCounts {
+  const ids = [
+    id,
+    ...db
+      .query<{ id: string }, [string]>("SELECT id FROM categories WHERE parent_id=?")
+      .all(id)
+      .map((r) => r.id),
+  ];
+  const marks = ids.map(() => "?").join(",");
+  const now = nowKst();
+  let cleared: ReassignedCounts = {
+    transactions: 0,
+    budgets: 0,
+    merchant_rules: 0,
+    recurring_rules: 0,
+    templates: 0,
+    children: ids.length - 1,
+  };
+  db.transaction(() => {
+    cleared = {
+      ...cleared,
+      transactions: db
+        .query(`UPDATE transactions SET category_id=NULL,updated_at=? WHERE category_id IN (${marks})`)
+        .run(now, ...ids).changes,
+      budgets: db.query(`DELETE FROM budgets WHERE category_id IN (${marks})`).run(...ids).changes,
+      merchant_rules: db.query(`DELETE FROM merchant_rules WHERE category_id IN (${marks})`).run(...ids).changes,
+      recurring_rules: db
+        .query(
+          `UPDATE recurring_rules SET template=json_set(template,'$.category_id',json('null')),updated_at=? WHERE json_extract(template,'$.category_id') IN (${marks})`,
+        )
+        .run(now, ...ids).changes,
+      templates: db
+        .query(
+          `UPDATE templates SET payload=json_set(payload,'$.category_id',json('null')),updated_at=? WHERE json_extract(payload,'$.category_id') IN (${marks})`,
+        )
+        .run(now, ...ids).changes,
+    };
+    db.query(`DELETE FROM categories WHERE parent_id=?`).run(id);
     db.query("DELETE FROM categories WHERE id=?").run(id);
-    return { transactions: 0, budgets: 0, merchant_rules: 0, recurring_rules: 0, templates: 0, children: 0 };
-  }
+  }).immediate();
+  return cleared;
+}
+
+export function deleteCategory(
+  db: Database,
+  id: string,
+  reassignTo?: string,
+): { moved: ReassignedCounts } | { cleared: ReassignedCounts } {
+  const category = getCategory(db, id);
+  if (!reassignTo) return { cleared: deleteLeavingUncategorized(db, id) };
+  const childRows = db.query<{ id: string }, [string]>("SELECT id FROM categories WHERE parent_id=?").all(id);
   const target = getCategory(db, reassignTo);
   if (target.id === id || target.type !== category.type) {
     throw new ApiError(400, "invalid_reassign", "Reassignment target must be a different category of the same type");
@@ -211,7 +251,7 @@ export function deleteCategory(db: Database, id: string, reassignTo?: string): R
     children: 0,
   };
   db.transaction(() => {
-    const { deleted_transactions, ...usage } = categoryUsage(db, id);
+    const { deleted_transactions, total_transactions: _total, ...usage } = categoryUsage(db, id);
     moved = { ...usage, transactions: usage.transactions + deleted_transactions };
     for (const sourceId of sources) {
       db.query(
@@ -258,7 +298,7 @@ export function deleteCategory(db: Database, id: string, reassignTo?: string): R
     }
     db.query("DELETE FROM categories WHERE id=?").run(id);
   }).immediate();
-  return moved;
+  return { moved };
 }
 
 export function listMerchantRules(db: Database) {

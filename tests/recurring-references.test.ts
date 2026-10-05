@@ -68,7 +68,7 @@ for (const kind of ["recurring", "templates"] as const) {
       });
     }
 
-    test("blocks deleting a referenced category and atomically reassigns stored payloads", async () => {
+    test("atomically reassigns stored payloads when deleting a category with a target", async () => {
       const { app, api } = await setup();
       const category = await (
         await api("/api/v1/categories", { method: "POST", body: { name: "테스트 원본", type: "expense" } })
@@ -82,7 +82,6 @@ for (const kind of ["recurring", "templates"] as const) {
       });
       expect(created.status).toBe(201);
       const row = await created.json();
-      expect((await api(`/api/v1/categories/${category.id}`, { method: "DELETE" })).status).toBe(409);
       expect(
         (await api(`/api/v1/categories/${category.id}?reassign_to=${target.id}`, { method: "DELETE" })).status,
       ).toBe(200);
