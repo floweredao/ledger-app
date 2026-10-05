@@ -200,7 +200,7 @@ describe("RecurringEditor real transport", () => {
     offline = true;
     render(<RecurringEditor />);
     expect(await screen.findByText(/오프라인/)).toBeTruthy();
-    expect(screen.getByText("테스트마트")).toBeTruthy();
+    expect(await screen.findByText("테스트마트")).toBeTruthy();
     expect(screen.getByRole<HTMLButtonElement>("button", { name: "지금 반영" }).disabled).toBe(true);
   });
   test("empty state provides first add action", async () => {
