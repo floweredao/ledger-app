@@ -58,13 +58,15 @@ export function CategoryPicker({ categories, recentIds, value, onChange }: Props
         ))}
       </div>
       {expanded && children.length > 0 ? (
-        <fieldset ref={childRowRef} className="chip-row entry-fieldset">
-          <legend className="sr-only">{`${expanded.name} 세부 분류`}</legend>
-          {children.map((child) => (
-            <Chip key={child.id} selected={child.id === value} onClick={() => onChange(child.id)}>
-              {child.name}
-            </Chip>
-          ))}
+        <fieldset ref={childRowRef} className="category-children entry-fieldset">
+          <legend className="entry-hint">{`${expanded.name} 세부 분류`}</legend>
+          <div className="chip-row">
+            {children.map((child) => (
+              <Chip key={child.id} selected={child.id === value} onClick={() => onChange(child.id)}>
+                {child.name}
+              </Chip>
+            ))}
+          </div>
         </fieldset>
       ) : null}
     </fieldset>

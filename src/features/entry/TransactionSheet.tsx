@@ -130,7 +130,15 @@ export function TransactionSheet({ data, initial, original, controls }: Props) {
 
   const amountErrorId = `${ids}-amount-error`;
   const textFocusProps = { onFocus: () => setTextFocus(true), onBlur: () => setTextFocus(false) };
-  const typeCategories = data.categories.filter((c) => c.type === draft.type && !c.hidden);
+  // Hidden categories (and the children of hidden parents) stay out of the picker, except the one this form
+  // opened with, so editing a record saved on it neither loses nor silently changes its category.
+  const opened = categoryOf(initial.categoryId);
+  const kept = new Set([opened?.id, opened?.parent_id]);
+  const hiddenIds = new Set(data.categories.filter((c) => c.hidden).map((c) => c.id));
+  const typeCategories = data.categories.filter(
+    (c) =>
+      c.type === draft.type && (kept.has(c.id) || (!c.hidden && (c.parent_id === null || !hiddenIds.has(c.parent_id)))),
+  );
   const conversionTargets = original && draft.type !== "transfer" ? transferTargets(data.assets, draft.assetId) : [];
   const convert = (targetId: string) => {
     const next = convertToTransfer(draft, targetId);

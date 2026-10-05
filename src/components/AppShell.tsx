@@ -2,7 +2,7 @@ import { type ReactNode, useEffect } from "react";
 import type { Settings } from "../../shared/schema";
 import { paths } from "../api/client";
 import { invalidate, useApi, useOnline } from "../api/hooks";
-import EntryHost from "../features/entry/EntryHost";
+import EntryHost, { ENTRY_CATEGORIES } from "../features/entry/EntryHost";
 import PendingBadge from "../features/offline/PendingBadge";
 import { useRoute } from "../router";
 import { sectionOf } from "./nav";
@@ -17,7 +17,7 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
   const section = sectionOf(route.name);
   const settings = useApi<Settings>(paths.settings);
   // Warm the metadata needed to record a transaction on the next offline open.
-  useApi(paths.categories());
+  useApi(ENTRY_CATEGORIES);
   useApi(paths.assets());
   useApi(paths.templates);
   useApi(paths.merchantRules);

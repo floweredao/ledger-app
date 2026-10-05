@@ -13,6 +13,18 @@ const realFetch = globalThis.fetch;
 let calls: Call[] = [];
 let reads: Map<string, ReturnType<typeof Promise.withResolvers<void>>>;
 let mutation: ReturnType<typeof Promise.withResolvers<void>>;
+const baseCategories = GETS.categories;
+
+type Node = { readonly hidden: boolean; readonly children: readonly { readonly hidden: boolean }[] };
+/** Mirrors GET /categories without include_hidden: hidden rows and the children of hidden parents drop out. */
+function withoutHidden(body: unknown): unknown {
+  const { items } = body as { items: readonly Node[] };
+  return {
+    items: items
+      .filter((node) => !node.hidden)
+      .map((node) => ({ ...node, children: node.children.filter((child) => !child.hidden) })),
+  };
+}
 
 beforeEach(() => {
   calls = [];
@@ -20,6 +32,7 @@ beforeEach(() => {
   mutation = Promise.withResolvers<void>();
   GETS.transactions = listOf(row);
   GETS["transactions/tx1"] = row;
+  GETS.categories = baseCategories;
   clearMemoryCache();
   markNetwork(true);
   setCsrfToken("csrf-x");
@@ -29,7 +42,8 @@ beforeEach(() => {
     calls.push({ method, url, body: init.body ? JSON.parse(String(init.body)) : undefined });
     const path = url.replace("/api/v1/", "").split("?")[0] ?? "";
     if (method === "GET") {
-      const body = GETS[path];
+      const body =
+        path === "categories" && !url.includes("include_hidden=true") ? withoutHidden(GETS[path]) : GETS[path];
       const response =
         body === undefined
           ? new Response(JSON.stringify({ error: { code: "not_found", message: "" } }), { status: 404 })
@@ -366,5 +380,69 @@ describe("edit entry", () => {
     fireEvent.click(screen.getByRole("button", { name: "실행 취소" }));
     await waitFor(() => expect(mutations()).toHaveLength(2));
     expect(mutations()[1]).toMatchObject({ method: "POST", url: "/api/v1/transactions/tx1/restore" });
+  });
+});
+
+describe("hidden and child categories", () => {
+  const stamp = "2026-10-01T09:00:00+09:00";
+  const cat = (id: string, name: string, parent: string | null, hidden = false) => ({
+    id,
+    type: "expense",
+    parent_id: parent,
+    name,
+    icon: "utensils",
+    color: "cat-1",
+    sort: 1,
+    hidden,
+    created_at: stamp,
+    updated_at: stamp,
+  });
+  beforeEach(() => {
+    GETS.categories = {
+      items: [
+        {
+          ...cat("c-food", "식비", null),
+          children: [cat("c-cafe", "카페", "c-food"), cat("c-snack", "숨긴간식", "c-food", true)],
+        },
+        { ...cat("c-gone", "숨긴분류", null, true), children: [cat("c-gone-sub", "숨긴하위", "c-gone")] },
+        { ...cat("c-transit", "교통", null), children: [] },
+      ],
+    };
+  });
+
+  test("a new entry offers neither hidden categories nor the children of a hidden parent", async () => {
+    await open();
+    expect(screen.queryByRole("button", { name: "숨긴분류" })).toBeNull();
+    press("식비");
+    expect(screen.getByRole("button", { name: "카페" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "숨긴간식" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "숨긴하위" })).toBeNull();
+  });
+
+  test("editing a record on a hidden child keeps showing and keeping its category", async () => {
+    GETS["transactions/tx1"] = { ...row, category_id: "c-snack" };
+    await open({ id: "tx1" });
+    expect(screen.getByRole("button", { name: "숨긴간식" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByRole("button", { name: "숨긴분류" })).toBeNull();
+    fireEvent.change(screen.getByLabelText("메모"), { target: { value: "메모만 수정" } });
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(mutations()).toHaveLength(1));
+    expect(mutations()[0]?.body).toEqual({ memo: "메모만 수정" });
+  });
+
+  test("editing a record under a hidden parent shows that parent and its chosen child only", async () => {
+    GETS["transactions/tx1"] = { ...row, category_id: "c-gone-sub" };
+    await open({ id: "tx1" });
+    expect(screen.getByRole("button", { name: "숨긴분류" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "숨긴하위" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.queryByRole("button", { name: "숨긴간식" })).toBeNull();
+  });
+
+  test("a child category picked while editing is saved as the child id", async () => {
+    await open({ id: "tx1" });
+    press("카페");
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(mutations()).toHaveLength(1));
+    expect(mutations()[0]?.body).toEqual({ category_id: "c-cafe" });
   });
 });

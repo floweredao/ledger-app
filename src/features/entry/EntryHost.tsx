@@ -23,6 +23,8 @@ import { applyTemplate, type EntryDraft, fromTransaction } from "./form";
 import { type EntryData, refreshLedger, TransactionSheet } from "./TransactionSheet";
 
 const RECENT = paths.transactions({ limit: 100 });
+/** Hidden categories too, so a record already saved on one keeps showing it; the sheet filters the rest out. */
+export const ENTRY_CATEGORIES = paths.categories({ include_hidden: true });
 
 function initialDraft(request: EntryRequest, data: EntryData, settings: Settings, original: Transaction | null) {
   if (original) return fromTransaction(original);
@@ -51,7 +53,7 @@ export default function EntryHost() {
   const { request, close } = useEntryRequest();
   const open = request !== null;
   const editId = request?.id ?? null;
-  const categories = useApi<Items<CategoryNode>>(open ? paths.categories() : null);
+  const categories = useApi<Items<CategoryNode>>(open ? ENTRY_CATEGORIES : null);
   const assets = useApi<Items<Asset>>(open ? paths.assets() : null);
   const settings = useApi<Settings>(open ? paths.settings : null);
   const templates = useApi<Items<Template>>(open ? paths.templates : null);
