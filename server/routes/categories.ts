@@ -7,6 +7,7 @@ import {
   ReorderSchema,
 } from "../../shared/schema";
 import {
+  categoryUsage,
   createCategory,
   deleteCategory,
   deleteMerchantRule,
@@ -43,9 +44,10 @@ export const categoriesRoutes = new Hono<AppBindings>()
   .patch("/categories/:id", async (c) => {
     return c.json(patchCategory(c.get("db"), c.req.param("id"), await readJson(c, CategoryPatchSchema)));
   })
+  .get("/categories/:id/usage", (c) => c.json(categoryUsage(c.get("db"), c.req.param("id"))))
   .delete("/categories/:id", (c) => {
-    deleteCategory(c.get("db"), c.req.param("id"), c.req.query("reassign_to"));
-    return c.json({ ok: true });
+    const moved = deleteCategory(c.get("db"), c.req.param("id"), c.req.query("reassign_to"));
+    return c.json({ ok: true, moved });
   })
   .get("/merchant-rules", (c) => c.json({ items: listMerchantRules(c.get("db")) }))
   .delete("/merchant-rules/:key", (c) => {

@@ -207,3 +207,123 @@ describe("categories and merchant rules API", () => {
     expect(testApp.db.query("SELECT 1 FROM merchant_rules WHERE merchant_key='samplecafe'").get()).toBeNull();
   });
 });
+
+type Api = Awaited<ReturnType<typeof setup>>["api"];
+
+describe("moving categories and reassigning before delete", () => {
+  const stamp = "2026-10-03T10:00:00+09:00";
+  async function tree(api: Api) {
+    return (await json(await api("/api/v1/categories?type=expense&include_hidden=true"))).items;
+  }
+  async function make(api: Api, name: string, parentId?: string) {
+    const body = {
+      type: "expense",
+      name,
+      ...(parentId ? { parent_id: parentId } : {}),
+      color: parentId ? null : "cat-4",
+    };
+    return json(await api("/api/v1/categories", { method: "POST", body }));
+  }
+
+  test("moves a child under another parent, appended to its children", async () => {
+    const { api } = await setup();
+    const a = await make(api, "테스트상위A");
+    const b = await make(api, "테스트상위B");
+    const kid = await make(api, "테스트하위", a.id);
+    await make(api, "기존하위", b.id);
+    const moved = await api(`/api/v1/categories/${kid.id}`, { method: "PATCH", body: { parent_id: b.id } });
+    expect(moved.status).toBe(200);
+    const items = await tree(api);
+    expect(items.find((c) => c.id === a.id)?.children).toEqual([]);
+    expect(items.find((c) => c.id === b.id)?.children.map((c) => c.name)).toEqual(["기존하위", "테스트하위"]);
+  });
+
+  test("moving a top-level category with children under another brings the children along", async () => {
+    const { api } = await setup();
+    const a = await make(api, "옮길상위");
+    const b = await make(api, "받을상위");
+    const k1 = await make(api, "하위1", a.id);
+    const k2 = await make(api, "하위2", a.id);
+    const moved = await api(`/api/v1/categories/${a.id}`, { method: "PATCH", body: { parent_id: b.id } });
+    expect(moved.status).toBe(200);
+    const items = await tree(api);
+    expect(items.some((c) => c.id === a.id)).toBe(false);
+    expect(items.find((c) => c.id === b.id)?.children.map((c) => c.id)).toEqual([a.id, k1.id, k2.id]);
+  });
+
+  test("promoting a child to top level keeps the color it showed", async () => {
+    const { api } = await setup();
+    const a = await make(api, "색상상위");
+    const kid = await make(api, "색상하위", a.id);
+    const promoted = (await (
+      await api(`/api/v1/categories/${kid.id}`, { method: "PATCH", body: { parent_id: null } })
+    ).json()) as Category;
+    expect(promoted.parent_id).toBeNull();
+    expect(promoted.color).toBe("cat-4");
+  });
+
+  test("rejects moves that would break the tree and leaves it unchanged", async () => {
+    const { api } = await setup();
+    const a = await make(api, "검사상위");
+    const kid = await make(api, "검사하위", a.id);
+    const b = await make(api, "검사대상");
+    await make(api, "검사하위", b.id);
+    const income = (await json(await api("/api/v1/categories?type=income"))).items[0];
+    if (!income) throw new Error("Seed income category missing");
+    const before = await tree(api);
+    const underChild = await api(`/api/v1/categories/${b.id}`, { method: "PATCH", body: { parent_id: kid.id } });
+    expect(underChild.status).toBe(400);
+    expect((await json(underChild)).error?.code).toBe("max_depth");
+    const underOwnChild = await api(`/api/v1/categories/${a.id}`, { method: "PATCH", body: { parent_id: kid.id } });
+    expect(underOwnChild.status).toBe(400);
+    const otherType = await api(`/api/v1/categories/${a.id}`, { method: "PATCH", body: { parent_id: income.id } });
+    expect((await json(otherType)).error?.code).toBe("invalid_parent");
+    const nameClash = await api(`/api/v1/categories/${a.id}`, { method: "PATCH", body: { parent_id: b.id } });
+    expect(nameClash.status).toBe(409);
+    expect(await tree(api)).toEqual(before);
+  });
+
+  test("reports what uses a category and how much the reassignment moved", async () => {
+    const { testApp, api } = await setup();
+    const a = await make(api, "사용중상위");
+    const kid = await make(api, "사용중하위", a.id);
+    const target = await make(api, "새상위");
+    const asset = testApp.db.query<{ id: string }, []>("SELECT id FROM assets LIMIT 1").get();
+    if (!asset) throw new Error("Seed asset missing");
+    const insertTx = testApp.db.query(
+      "INSERT INTO transactions(id,type,occurred_at,amount,asset_id,category_id,deleted_at,created_at,updated_at) VALUES(?, 'expense', ?, 1000, ?, ?, ?, ?, ?)",
+    );
+    insertTx.run(Bun.randomUUIDv7(), stamp, asset.id, a.id, null, stamp, stamp);
+    insertTx.run(Bun.randomUUIDv7(), stamp, asset.id, a.id, null, stamp, stamp);
+    insertTx.run(Bun.randomUUIDv7(), stamp, asset.id, a.id, stamp, stamp, stamp);
+    testApp.db
+      .query("INSERT INTO budgets(id,category_id,month,amount) VALUES(?,?,'',5000)")
+      .run(Bun.randomUUIDv7(), a.id);
+    testApp.db
+      .query("INSERT INTO merchant_rules(merchant_key,category_id,type,updated_at) VALUES('테스트마트',?,'expense',?)")
+      .run(a.id, stamp);
+    testApp.db
+      .query("INSERT INTO templates(id,name,payload,sort,use_count,created_at,updated_at) VALUES(?,?,?,0,0,?,?)")
+      .run(Bun.randomUUIDv7(), "샘플", JSON.stringify({ type: "expense", category_id: a.id }), stamp, stamp);
+
+    const usage = await api(`/api/v1/categories/${a.id}/usage`);
+    expect(usage.status).toBe(200);
+    expect(await usage.json()).toEqual({
+      transactions: 2,
+      deleted_transactions: 1,
+      budgets: 1,
+      merchant_rules: 1,
+      recurring_rules: 0,
+      templates: 1,
+      children: 1,
+    });
+    const removed = await api(`/api/v1/categories/${a.id}?reassign_to=${target.id}`, { method: "DELETE" });
+    expect(removed.status).toBe(200);
+    expect(await removed.json()).toEqual({
+      ok: true,
+      moved: { transactions: 3, budgets: 1, merchant_rules: 1, recurring_rules: 0, templates: 1, children: 1 },
+    });
+    expect((await tree(api)).find((c) => c.id === target.id)?.children.map((c) => c.id)).toEqual([kid.id]);
+    expect((await api(`/api/v1/categories/${a.id}/usage`)).status).toBe(404);
+  });
+});

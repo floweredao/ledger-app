@@ -121,10 +121,15 @@ Category: `id, type('expense'|'income'), parent_id, name, icon, color, sort, hid
 ### `PATCH /categories/:id`
 본문 `name, icon, color, hidden, sort, parent_id` 중 일부. 응답 `Category`.
 
+`parent_id`를 바꾸면 분류를 옮겨요. `null`이면 대분류가 되고, 다른 대분류 id면 그 아래 끝에 붙어요(`sort`를 함께 주면 그 값). 하위 분류가 있는 대분류를 다른 대분류 아래로 옮기면 그 하위 분류들도 같은 대분류 아래로 함께 옮겨져 형제가 돼요(두 단계 유지). 대분류가 된 하위 분류는 색이 없으면 원래 부모 색을 물려받아요. 하위 분류 아래로는 옮길 수 없어요(400 `max_depth`). 타입이 다르거나 자기 자신이면 400 `invalid_parent`, 옮길 곳에 같은 이름(함께 옮겨지는 하위 포함)이 있으면 409 `conflict`이고, 거절되면 아무것도 바뀌지 않아요. 거래는 분류 id를 그대로 가지므로 통계·예산의 상위 합산은 새 구조를 따라요.
+
+### `GET /categories/:id/usage`
+이 분류를 쓰는 곳의 개수예요. 응답 `{transactions, deleted_transactions, budgets, merchant_rules, recurring_rules, templates, children}`. `transactions`는 살아 있는 거래, `deleted_transactions`는 휴지통에 있는 거래예요. 없는 분류면 404.
+
 ### `DELETE /categories/:id`
 쿼리 `reassign_to`가 없으면, 하위 분류가 있거나 거래, 예산, 가맹점 규칙, 반복 거래, 템플릿이 참조할 때 409 `in_use`예요.
 
-`reassign_to`를 주면 한 트랜잭션 안에서 거래, 예산(같은 월 예산은 합산), 가맹점 규칙과 반복 거래·템플릿의 분류 참조를 대상으로 옮기고, 하위 분류는 대상 아래로 옮긴 뒤 지워요. 대상이 자기 자신이거나 타입이 다르면 400 `invalid_reassign`, 하위 분류가 있는데 대상이 하위 분류면 역시 400 `invalid_reassign`이에요. 응답 `{ok: true}`.
+`reassign_to`를 주면 한 트랜잭션 안에서 거래, 예산(같은 월 예산은 합산), 가맹점 규칙과 반복 거래·템플릿의 분류 참조를 대상으로 옮기고, 하위 분류는 대상 아래로 옮긴 뒤 지워요. 대상이 자기 자신이거나 타입이 다르면 400 `invalid_reassign`, 하위 분류가 있는데 대상이 하위 분류면 역시 400 `invalid_reassign`, 옮길 하위 분류와 같은 이름이 대상 아래에 있으면 409 `conflict`예요. 응답 `{ok: true, moved: {transactions, budgets, merchant_rules, recurring_rules, templates, children}}`. `moved.transactions`는 휴지통 거래를 포함해요. `reassign_to` 없이 지운 경우는 모두 0이에요.
 
 ### `POST /categories/reorder`
 본문 `{ids: string[]}`(1~500개, 같은 타입, 같은 부모). 중복이나 형제가 아닌 id가 섞이면 400 `invalid_reorder`. 응답 `{ok: true}`.

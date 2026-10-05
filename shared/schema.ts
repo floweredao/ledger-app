@@ -121,6 +121,18 @@ export const CategoryPatchSchema = z
   })
   .partial()
   .strict();
+/** What still points at a category; `deleted_transactions` are records in the trash. */
+export type CategoryUsage = {
+  readonly transactions: number;
+  readonly deleted_transactions: number;
+  readonly budgets: number;
+  readonly merchant_rules: number;
+  readonly recurring_rules: number;
+  readonly templates: number;
+  readonly children: number;
+};
+/** What a delete with `reassign_to` moved; `transactions` includes records in the trash. */
+export type ReassignedCounts = Omit<CategoryUsage, "deleted_transactions">;
 export const ReorderSchema = z.object({ ids: z.array(id).min(1).max(500) }).strict();
 export type CategoryInput = z.infer<typeof CategoryInputSchema>;
 export type CategoryPatch = z.infer<typeof CategoryPatchSchema>;

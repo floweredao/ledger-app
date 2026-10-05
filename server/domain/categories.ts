@@ -6,7 +6,9 @@ import {
   CategoryPatchSchema,
   CategorySchema,
   type CategoryType,
+  type CategoryUsage,
   MerchantRuleSchema,
+  type ReassignedCounts,
   ReorderSchema,
 } from "../../shared/schema";
 import { ApiError } from "../http";
@@ -80,6 +82,17 @@ export function createCategory(db: Database, value: unknown): Category {
   return getCategory(db, id);
 }
 
+const nextSort = (db: Database, type: CategoryType, parentId: string | null): number =>
+  db
+    .query<{ next_sort: number }, [string, string | null]>(
+      "SELECT COALESCE(MAX(sort),-1)+1 AS next_sort FROM categories WHERE type=? AND parent_id IS ?",
+    )
+    .get(type, parentId)?.next_sort ?? 0;
+
+/**
+ * Moving a top-level category under another one brings its children along: they become siblings of the moved
+ * category under the new parent (two levels at most). A promoted child keeps the color it inherited.
+ */
 export function patchCategory(db: Database, id: string, value: unknown): Category {
   const patch = CategoryPatchSchema.parse(value);
   const current = getCategory(db, id);
@@ -87,23 +100,60 @@ export function patchCategory(db: Database, id: string, value: unknown): Categor
   const nextParent = patch.parent_id === undefined ? current.parent_id : patch.parent_id;
   if (nextParent === id) throw new ApiError(400, "invalid_parent", "A category cannot be its own parent");
   validateParent(db, nextType, nextParent);
-  if (nextParent !== current.parent_id) {
-    const descendant = db.query("SELECT 1 FROM categories WHERE parent_id=? LIMIT 1").get(id);
-    if (descendant) throw new ApiError(400, "max_depth", "A category with children cannot become a child");
-  }
+  const moving = nextParent !== current.parent_id;
+  const children = moving
+    ? db
+        .query<{ id: string; name: string }, [string]>(
+          "SELECT id,name FROM categories WHERE parent_id=? ORDER BY sort,name",
+        )
+        .all(id)
+    : [];
   const nextName = patch.name ?? current.name;
   duplicateName(db, nextType, nextParent, nextName, id);
-  const fields = ["name", "icon", "color", "hidden", "sort", "parent_id"] as const;
-  const changed = fields.filter((field) => patch[field] !== undefined && patch[field] !== current[field]);
-  if (changed.length) {
-    const columns = changed.map((field) => `${field}=?`);
-    const values = changed.map((field) => {
-      const value = patch[field];
-      return field === "hidden" ? Number(value) : (value ?? null);
-    });
-    db.query(`UPDATE categories SET ${columns.join(",")},updated_at=? WHERE id=?`).run(...values, nowKst(), id);
+  if (nextParent !== null) for (const child of children) duplicateName(db, nextType, nextParent, child.name, child.id);
+  const update: Partial<
+    Record<"name" | "icon" | "color" | "hidden" | "sort" | "parent_id", string | number | boolean | null>
+  > = {};
+  for (const field of ["name", "icon", "color", "hidden", "sort", "parent_id"] as const) {
+    if (patch[field] !== undefined && patch[field] !== current[field]) update[field] = patch[field];
   }
+  if (moving) {
+    update.sort ??= nextSort(db, nextType, nextParent);
+    if (nextParent === null && (patch.color ?? current.color) === null && current.parent_id !== null) {
+      update.color = getCategory(db, current.parent_id).color;
+    }
+  }
+  const now = nowKst();
+  db.transaction(() => {
+    const changed = Object.entries(update);
+    if (changed.length) {
+      const columns = changed.map(([field]) => `${field}=?`);
+      const values = changed.map(([, value]) => (typeof value === "boolean" ? Number(value) : (value ?? null)));
+      db.query(`UPDATE categories SET ${columns.join(",")},updated_at=? WHERE id=?`).run(...values, now, id);
+    }
+    if (nextParent !== null && children.length) {
+      const start = nextSort(db, nextType, nextParent);
+      const move = db.query("UPDATE categories SET parent_id=?,sort=?,updated_at=? WHERE id=?");
+      for (const [index, child] of children.entries()) move.run(nextParent, start + index, now, child.id);
+    }
+  }).immediate();
   return getCategory(db, id);
+}
+
+export function categoryUsage(db: Database, id: string): CategoryUsage {
+  getCategory(db, id);
+  const count = (sql: string) => db.query<{ n: number }, [string]>(sql).get(id)?.n ?? 0;
+  return {
+    transactions: count("SELECT count(*) AS n FROM transactions WHERE category_id=? AND deleted_at IS NULL"),
+    deleted_transactions: count(
+      "SELECT count(*) AS n FROM transactions WHERE category_id=? AND deleted_at IS NOT NULL",
+    ),
+    budgets: count("SELECT count(*) AS n FROM budgets WHERE category_id=?"),
+    merchant_rules: count("SELECT count(*) AS n FROM merchant_rules WHERE category_id=?"),
+    recurring_rules: count("SELECT count(*) AS n FROM recurring_rules WHERE json_extract(template,'$.category_id')=?"),
+    templates: count("SELECT count(*) AS n FROM templates WHERE json_extract(payload,'$.category_id')=?"),
+    children: count("SELECT count(*) AS n FROM categories WHERE parent_id=?"),
+  };
 }
 
 export function reorderCategories(db: Database, value: unknown): void {
@@ -121,7 +171,7 @@ export function reorderCategories(db: Database, value: unknown): void {
   }).immediate();
 }
 
-export function deleteCategory(db: Database, id: string, reassignTo?: string): void {
+export function deleteCategory(db: Database, id: string, reassignTo?: string): ReassignedCounts {
   const category = getCategory(db, id);
   const childRows = db.query<{ id: string }, [string]>("SELECT id FROM categories WHERE parent_id=?").all(id);
   const hasRefs = (categoryId: string) =>
@@ -137,7 +187,7 @@ export function deleteCategory(db: Database, id: string, reassignTo?: string): v
   if (!reassignTo) {
     if (childRows.length || hasRefs(id)) throw new ApiError(409, "in_use", "Category is referenced by other data");
     db.query("DELETE FROM categories WHERE id=?").run(id);
-    return;
+    return { transactions: 0, budgets: 0, merchant_rules: 0, recurring_rules: 0, templates: 0, children: 0 };
   }
   const target = getCategory(db, reassignTo);
   if (target.id === id || target.type !== category.type) {
@@ -152,7 +202,17 @@ export function deleteCategory(db: Database, id: string, reassignTo?: string): v
     duplicateName(db, category.type, target.id, child.name, childId);
   }
   const sources = [id];
+  let moved: ReassignedCounts = {
+    transactions: 0,
+    budgets: 0,
+    merchant_rules: 0,
+    recurring_rules: 0,
+    templates: 0,
+    children: 0,
+  };
   db.transaction(() => {
+    const { deleted_transactions, ...usage } = categoryUsage(db, id);
+    moved = { ...usage, transactions: usage.transactions + deleted_transactions };
     for (const sourceId of sources) {
       db.query(
         "UPDATE recurring_rules SET template=json_set(template,'$.category_id',?),updated_at=? WHERE json_extract(template,'$.category_id')=?",
@@ -198,6 +258,7 @@ export function deleteCategory(db: Database, id: string, reassignTo?: string): v
     }
     db.query("DELETE FROM categories WHERE id=?").run(id);
   }).immediate();
+  return moved;
 }
 
 export function listMerchantRules(db: Database) {
