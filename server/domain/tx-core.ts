@@ -4,6 +4,7 @@ import { nowKst, toKstIso } from "../../shared/dates";
 import { merchantKey } from "../../shared/merchant";
 import {
   type Source,
+  type SourceDetail,
   type Transaction,
   type TransactionInput,
   type TransactionPatch,
@@ -46,11 +47,32 @@ const EDITABLE_FIELDS = [
 ] as const satisfies readonly EditableField[];
 
 const flag = z.number().transform((value) => value === 1);
+const ImportedEntrySchema = z.object({
+  kind: z.string(),
+  counterparty: z.string(),
+  account: z.string(),
+  amount: z.number(),
+  balance: z.number().nullable(),
+  currency: z.string().optional(),
+  at: z.string(),
+});
+const IMPORTED_SOURCES: ReadonlySet<Source> = new Set(["kakaobank_sms", "kakaobank_excel"]);
+
+/** The importer's own entry (source_raw) for bank-imported rows; owner edits never touch it. */
+function sourceDetail(source: Source, raw: string | null): SourceDetail | null {
+  if (raw === null || !IMPORTED_SOURCES.has(source)) return null;
+  const entry = ImportedEntrySchema.parse(JSON.parse(raw));
+  return { ...entry, currency: entry.currency ?? null };
+}
+
 const TransactionRowSchema = TransactionSchema.extend({
   is_refund: flag,
   hidden: flag,
   user_locked: z.string().transform((value) => z.array(z.string()).parse(JSON.parse(value))),
-});
+  source_raw: z.string().nullable(),
+}).transform(
+  ({ source_raw, ...row }): Transaction => ({ ...row, source_detail: sourceDetail(row.source, source_raw) }),
+);
 const toColumn = (value: string | number | boolean | null): Bindable =>
   typeof value === "boolean" ? Number(value) : value;
 

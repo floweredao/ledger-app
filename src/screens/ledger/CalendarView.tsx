@@ -6,6 +6,7 @@ import { paths } from "../../api/client";
 import { useApi } from "../../api/hooks";
 import { openEntry } from "../../app/entry-bridge";
 import { formatMonth } from "../../app/periods";
+import { originalNameLine } from "../../app/transaction-label";
 import { AmountText } from "../../components/AmountText";
 import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
@@ -15,6 +16,7 @@ import { useSelectedMonth } from "../../router";
 import "./calendar.css";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
+const KIND_LABEL = { expense: "지출", income: "수입", transfer: "이체", refund: "환불" } as const;
 
 function firstDate(month: string): string {
   return `${month}-01`;
@@ -67,6 +69,13 @@ function DayTransactions({ date }: { readonly date: string }) {
           transaction.currency !== "KRW" && transaction.foreign_amount !== null
             ? `${transaction.type === "expense" && !transaction.is_refund ? "-" : transaction.type === "transfer" ? "" : "+"}${transaction.currency} ${transaction.foreign_amount.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}`
             : null;
+        const kind = transaction.type === "expense" && transaction.is_refund ? "refund" : transaction.type;
+        const subtitle = [
+          transaction.merchant && transaction.memo ? transaction.memo : undefined,
+          originalNameLine(transaction),
+        ]
+          .filter(Boolean)
+          .join(" · ");
         return (
           <li key={transaction.id}>
             <ListRow
@@ -75,8 +84,15 @@ function DayTransactions({ date }: { readonly date: string }) {
                 transaction.memo ||
                 (transaction.type === "transfer" ? "이체" : "이름 없는 거래")
               }
-              subtitle={transaction.merchant && transaction.memo ? transaction.memo : undefined}
-              badges={transaction.krw_status === "pending" ? <Badge tone="warning">원화 미확정</Badge> : undefined}
+              subtitle={subtitle || undefined}
+              badges={
+                <span className="calendar-badges">
+                  <span className="calendar-kind" data-kind={kind}>
+                    {KIND_LABEL[kind]}
+                  </span>
+                  {transaction.krw_status === "pending" ? <Badge tone="warning">원화 미확정</Badge> : null}
+                </span>
+              }
               trailing={
                 <span className="calendar-row-amount">
                   {transaction.krw_status === "pending" && transaction.amount === 0 && foreignAmount ? (

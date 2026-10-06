@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, setSystemTime, test } from "bun:test";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { clearMemoryCache } from "../../api/hooks";
 import { markNetwork, setCsrfToken } from "../../api/transport";
 import CalendarView from "./CalendarView";
@@ -86,6 +86,38 @@ afterEach(() => {
 });
 
 describe("CalendarView", () => {
+  test("labels each day record as expense, income, transfer or refund and keeps the original imported name", async () => {
+    const base = transactions[0] ?? {};
+    transactions = [
+      {
+        ...base,
+        merchant: "샘플 구독료",
+        source: "kakaobank_sms",
+        source_detail: {
+          kind: "체크카드결제",
+          counterparty: "SAMPLE*TESTSHOP 851",
+          account: "3333-00-0000000",
+          amount: -8751,
+          balance: 431249,
+          currency: null,
+          at: "2026-10-04T15:20:00+09:00",
+        },
+      },
+      { ...base, id: "transaction-2", type: "transfer", merchant: "샘플 통장에서 이체", amount: 30000 },
+      { ...base, id: "transaction-3", type: "income", merchant: "샘플용돈", amount: 50000 },
+      { ...base, id: "transaction-4", merchant: "샘플환불", is_refund: true, amount: 1000 },
+    ];
+    render(<CalendarView />);
+    fireEvent.click(await screen.findByRole("button", { name: /2026년 10월 4일/ }));
+    const row = async (name: RegExp) => within(await screen.findByRole("button", { name }));
+    expect((await row(/샘플 구독료/)).getByText("지출")).toBeTruthy();
+    expect((await row(/샘플 구독료/)).getByText("원래: SAMPLE*TESTSHOP 851")).toBeTruthy();
+    expect((await row(/샘플 통장에서 이체/)).getByText("이체")).toBeTruthy();
+    expect((await row(/샘플용돈/)).getByText("수입")).toBeTruthy();
+    expect((await row(/샘플환불/)).getByText("환불")).toBeTruthy();
+    expect((await row(/샘플환불/)).queryByText("지출")).toBeNull();
+  });
+
   test("selected day heading uses the shared compact date format", async () => {
     render(<CalendarView />);
     fireEvent.click(await screen.findByRole("button", { name: /2026년 10월 4일/ }));

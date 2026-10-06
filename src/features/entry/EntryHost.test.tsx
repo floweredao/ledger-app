@@ -302,6 +302,31 @@ describe("custody transfers", () => {
 });
 
 describe("edit entry", () => {
+  test("shows the original imported text read-only after the title was renamed", async () => {
+    GETS["transactions/tx1"] = {
+      ...row,
+      merchant: "샘플 구독료",
+      merchant_key: "샘플구독료",
+      source_detail: {
+        kind: "체크카드결제",
+        counterparty: "SAMPLE*TESTSHOP 851",
+        account: "3333-00-0000000",
+        amount: -8751,
+        balance: 431249,
+        currency: null,
+        at: "2026-10-04T15:20:00+09:00",
+      },
+    };
+    await open({ id: "tx1" });
+    const original = within(screen.getByRole("region", { name: "자동 저장 원래 내용" }));
+    expect(original.getByText("SAMPLE*TESTSHOP 851")).toBeTruthy();
+    expect(original.getByText("체크카드결제")).toBeTruthy();
+    expect(original.getByText("-8,751원")).toBeTruthy();
+    expect(original.getByText("3333-00-0000000")).toBeTruthy();
+    expect(original.getByText("431,249원")).toBeTruthy();
+    expect(screen.getByLabelText("내용")).toHaveProperty("value", "샘플 구독료");
+  });
+
   test("edits an unresolved foreign record without inventing a won amount", async () => {
     GETS["transactions/tx1"] = { ...row, amount: 0, currency: "USD", foreign_amount: 3.2, krw_status: "pending" };
     await open({ id: "tx1" });

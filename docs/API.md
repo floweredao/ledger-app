@@ -66,9 +66,10 @@ SessionState는 `{authenticated, csrf_token, expires_at}`이에요. 로그인 �
 
 ## 거래
 
-Transaction 필드: `id, type('expense'|'income'|'transfer'), occurred_at, amount, is_refund, currency, foreign_amount, krw_status('exact'|'inferred'|'pending'), asset_id, to_asset_id, category_id, merchant, merchant_key, memo, source, source_key, src_account, src_amount, src_at, hidden, hidden_reason, user_locked, recurring_rule_id, deleted_at, created_at, updated_at`.
+Transaction 필드: `id, type('expense'|'income'|'transfer'), occurred_at, amount, is_refund, currency, foreign_amount, krw_status('exact'|'inferred'|'pending'), asset_id, to_asset_id, category_id, merchant, merchant_key, memo, source, source_key, src_account, src_amount, src_at, source_detail, hidden, hidden_reason, user_locked, recurring_rule_id, deleted_at, created_at, updated_at`.
 
 - `source`는 `manual | kakaobank_excel | kakaobank_sms | recurring | import | card_payment`예요.
+- `source_detail`은 카카오뱅크 알림·엑셀로 들어온 기록(`kakaobank_sms`, `kakaobank_excel`)에서 가져올 때 받은 원래 내용 `{kind, counterparty, account, amount, balance, currency, at}`이에요. 그 밖의 기록은 `null`이에요. 읽기 전용이고, `merchant`·`memo`를 고쳐도 바뀌지 않아요. `amount`는 원본 부호(출금은 음수)와 원본 통화 그대로이고, `currency`는 원화면 `null`이에요.
 - `src_account`, `src_amount`, `src_at`은 가져오기 전용이라 API로 쓸 수 없어요. `amount`는 항상 정수 원이지만, 원본 금액 `src_amount`는 소수일 수 있어요.
 
 ### `GET /transactions`

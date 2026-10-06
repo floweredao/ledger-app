@@ -179,3 +179,32 @@
   margin-bottom: var(--space-2);
   padding: 0;
 }
+
+.entry-source-detail {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-input);
+  background: var(--surface-2);
+}
+
+.entry-source-list {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.entry-source-list > div {
+  display: grid;
+  grid-template-columns: 5.5em minmax(0, 1fr);
+  gap: var(--space-2);
+}
+
+.entry-source-list dt {
+  color: var(--text-2);
+}
+
+.entry-source-list dd {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}

@@ -1,7 +1,15 @@
 import { type MutableRefObject, useEffect, useId, useRef, useState } from "react";
 import { merchantKey } from "../../../shared/merchant";
 import { formatWon } from "../../../shared/money";
-import type { Asset, Category, MerchantRule, Template, Transaction, TransactionType } from "../../../shared/schema";
+import type {
+  Asset,
+  Category,
+  MerchantRule,
+  SourceDetail,
+  Template,
+  Transaction,
+  TransactionType,
+} from "../../../shared/schema";
 import { api, isApiError, isNetworkError } from "../../api/client";
 import { invalidate } from "../../api/hooks";
 import { Chip } from "../../components/Chip";
@@ -65,6 +73,39 @@ function saveErrorMessage(error: unknown): string {
   if (isNetworkError(error)) return "서버에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.";
   if (isApiError(error) && error.status === 400) return "저장하지 못했어요. 입력한 내용을 확인해 주세요.";
   return "저장하지 못했어요. 잠시 후 다시 시도해 주세요.";
+}
+
+/** Read-only copy of what the bank import first recorded; it stays put however the title or memo is edited. */
+function SourceDetailSection({ detail, labelId }: { readonly detail: SourceDetail; readonly labelId: string }) {
+  const sign = detail.amount < 0 ? "-" : "+";
+  const amount =
+    detail.currency === null
+      ? `${sign}${formatWon(Math.abs(detail.amount))}`
+      : `${sign}${detail.currency} ${Math.abs(detail.amount).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}`;
+  const rows: readonly (readonly [string, string, boolean])[] = [
+    ["거래처", detail.counterparty || "없음", false],
+    ["종류", detail.kind || "없음", false],
+    ["금액", amount, true],
+    ["계좌", detail.account, true],
+    ...(detail.balance === null ? [] : [["잔액", formatWon(detail.balance), true] as const]),
+    ["받은 시각", detail.at.slice(0, 16).replace("T", " "), true],
+  ];
+  return (
+    <section className="entry-section entry-source-detail" aria-labelledby={labelId}>
+      <h3 className="entry-label" id={labelId}>
+        자동 저장 원래 내용
+      </h3>
+      <dl className="entry-source-list">
+        {rows.map(([label, value, numeric]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd className={numeric ? "num" : undefined}>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <p className="entry-hint">내용이나 메모를 고쳐도 처음 자동으로 저장된 내용은 여기 그대로 남아요.</p>
+    </section>
+  );
 }
 
 export function TransactionSheet({ data, initial, original, controls }: Props) {
@@ -257,6 +298,9 @@ export function TransactionSheet({ data, initial, original, controls }: Props) {
           />
         )}
       </Field>
+      {original?.source_detail ? (
+        <SourceDetailSection detail={original.source_detail} labelId={`${ids}-source-detail`} />
+      ) : null}
       {original ? null : (
         <FavoritesRow
           templates={data.templates}

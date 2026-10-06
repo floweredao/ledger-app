@@ -9,7 +9,7 @@ import { invalidate, useApi } from "../../api/hooks";
 import { isPendingTransaction } from "../../api/outbox";
 import { openEntry } from "../../app/entry-bridge";
 import { calendarMonthFilter } from "../../app/periods";
-import { TRANSFER_ICON, transactionTitle, transferRoute } from "../../app/transaction-label";
+import { originalNameLine, TRANSFER_ICON, transactionTitle, transferRoute } from "../../app/transaction-label";
 import { AmountText } from "../../components/AmountText";
 import { Button } from "../../components/Button";
 import { CategoryIcon } from "../../components/CategoryIcon";
@@ -83,7 +83,11 @@ function DaySection({
               : null;
           const assetName = transaction.asset_id ? assets.get(transaction.asset_id) : undefined;
           const route = transferRoute(transaction, (id) => assets.get(id));
-          const subtitle = [transaction.memo, route ?? assetName ?? transaction.src_account ?? undefined]
+          const subtitle = [
+            transaction.memo,
+            originalNameLine(transaction),
+            route ?? assetName ?? transaction.src_account ?? undefined,
+          ]
             .filter(Boolean)
             .join(" · ");
           const badges = (

@@ -150,6 +150,18 @@ export const MerchantRuleSchema = z.object({
 });
 export type MerchantRule = z.infer<typeof MerchantRuleSchema>;
 
+/** What the bank import first said about a record, kept read-only so a renamed title never loses it. */
+export const SourceDetailSchema = z.object({
+  kind: z.string(),
+  counterparty: z.string(),
+  account: z.string(),
+  amount: z.number(),
+  balance: z.number().nullable(),
+  currency: z.string().nullable(),
+  at: z.string(),
+});
+export type SourceDetail = z.infer<typeof SourceDetailSchema>;
+
 export const TransactionSchema = z.object({
   id,
   type: TransactionTypeSchema,
@@ -170,6 +182,8 @@ export const TransactionSchema = z.object({
   src_account: z.string().nullable(),
   src_amount: z.number().nullable(),
   src_at: z.string().nullable(),
+  // Optional: offline caches and backups written before this field existed do not carry it.
+  source_detail: SourceDetailSchema.nullable().optional(),
   hidden: z.boolean(),
   hidden_reason: z.string().nullable(),
   user_locked: z.array(z.string()),

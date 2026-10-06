@@ -103,6 +103,57 @@ afterEach(() => {
 });
 
 describe("DailyList", () => {
+  test("a renamed automatic record shows its original imported name; an unchanged one does not repeat it", async () => {
+    const renamed = transaction({
+      id: "renamed-1",
+      source: "kakaobank_sms",
+      merchant: "샘플 구독료",
+      memo: "",
+      source_detail: {
+        kind: "체크카드결제",
+        counterparty: "SAMPLE*TESTSHOP 851",
+        account: "3333-00-0000000",
+        amount: -8751,
+        balance: 431249,
+        currency: null,
+        at: `${firstDate}T12:00:00+09:00`,
+      },
+    });
+    const unchanged = transaction({
+      id: "unchanged-1",
+      source: "kakaobank_sms",
+      merchant: "샘플가게",
+      memo: "",
+      source_detail: {
+        kind: "체크카드결제",
+        counterparty: "샘플가게(체크",
+        account: "3333-00-0000000",
+        amount: -8751,
+        balance: 431249,
+        currency: null,
+        at: `${firstDate}T12:00:00+09:00`,
+      },
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL) =>
+        new Response(JSON.stringify(String(input).includes("categories") ? categories : list([renamed, unchanged])), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      { preconnect: originalFetch.preconnect },
+    );
+    try {
+      navigate(`/?month=${month}`, { replace: true });
+      render(<DailyList />);
+      const renamedRow = await screen.findByRole("button", { name: /샘플 구독료/ });
+      expect(renamedRow.textContent).toContain("원래: SAMPLE*TESTSHOP 851");
+      expect(screen.getByRole("button", { name: /샘플가게/ }).textContent).not.toContain("원래:");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   test("groups selected month by KST day and shows income and expense totals", async () => {
     const lunch = transaction();
     const refund = transaction({
