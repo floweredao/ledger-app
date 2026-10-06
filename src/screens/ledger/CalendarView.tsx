@@ -1,4 +1,4 @@
-import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, type KeyboardEvent, useEffect, useMemo, useState } from "react";
 import { addDays, daysInMonth, formatDisplayDate, kstDate } from "../../../shared/dates";
 import { compactWon, formatSigned } from "../../../shared/money";
 import type { CategoryNode, StatsCalendar, TransactionList } from "../../../shared/schema";
@@ -41,6 +41,13 @@ function makeGrid(month: string): readonly string[] {
 function signedCompact(kind: "income" | "expense", amount: number): string {
   const sign = kind === "income" ? "+" : "-";
   return `${sign}${compactWon(amount)}`;
+}
+
+/** Approximate width in em (tabular digits, narrow separators, wide 만/억) so CSS can fit the amount on one line. */
+function amountFit(text: string): CSSProperties {
+  let em = 0;
+  for (const char of text) em += char === "," || char === "." ? 0.28 : /\d|[+-]/.test(char) ? 0.56 : 0.9;
+  return { "--amount-em": em.toFixed(2) } as CSSProperties;
 }
 
 function DayTransactions({ date }: { readonly date: string }) {
@@ -225,7 +232,9 @@ export default function CalendarView() {
                       <span className="calendar-day-amount calendar-income num" aria-hidden="true">
                         {day && day.income > 0 ? (
                           <>
-                            <span className="calendar-compact">{signedCompact("income", day.income)}</span>
+                            <span className="calendar-compact" style={amountFit(signedCompact("income", day.income))}>
+                              {signedCompact("income", day.income)}
+                            </span>
                             <span className="calendar-full">{formatSigned("income", day.income)}</span>
                           </>
                         ) : null}
@@ -233,7 +242,9 @@ export default function CalendarView() {
                       <span className="calendar-day-amount calendar-expense num" aria-hidden="true">
                         {day && day.expense > 0 ? (
                           <>
-                            <span className="calendar-compact">{signedCompact("expense", day.expense)}</span>
+                            <span className="calendar-compact" style={amountFit(signedCompact("expense", day.expense))}>
+                              {signedCompact("expense", day.expense)}
+                            </span>
                             <span className="calendar-full">{formatSigned("expense", day.expense)}</span>
                           </>
                         ) : null}

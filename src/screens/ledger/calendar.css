@@ -112,6 +112,12 @@
   color: var(--expense);
 }
 
+.calendar-compact {
+  /* One line in a phone-width day: shrink below 12px only when the amount's estimated width needs it. */
+  font-size: min(var(--text-xs), calc(100cqi / (var(--amount-em, 4) * 1.06)));
+  white-space: nowrap;
+}
+
 .calendar-full {
   display: none;
 }
@@ -149,7 +155,10 @@
 }
 
 .calendar-transactions .list-row {
+  /* Rows span the panel edge to edge so the icon lines up with the heading, like the daily list. */
+  inline-size: calc(100% + 2 * var(--space-4));
   min-inline-size: 0;
+  margin-inline: calc(-1 * var(--space-4));
 }
 
 .calendar-row-amount {

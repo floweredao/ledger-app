@@ -62,6 +62,13 @@ async function inspect(label, width) {
       const [date,time]=fields.map(f=>f.input);
       if(date&&time&&date.right>time.left+1)issues.push({element:'entry-datetime overlap',date:date.right,time:time.left});
     }
+    for(const amount of document.querySelectorAll('.calendar-compact')){
+      if(getComputedStyle(amount).display==='none')continue;
+      const cell=amount.closest('.calendar-day').getBoundingClientRect(),r=amount.getBoundingClientRect();
+      if(amount.getClientRects().length>1)issues.push({element:'calendar amount wraps',text:amount.textContent});
+      if(r.left<cell.left-0.5||r.right>cell.right+0.5)
+        issues.push({element:'calendar amount outside its day',text:amount.textContent,day:[cell.left,cell.right],amount:[r.left,r.right]});
+    }
     const sheet=document.querySelector('.sheet-body');
     if(sheet&&['auto','scroll'].includes(getComputedStyle(sheet).overflowX))
       issues.push({element:'sheet-body',horizontalScrollPolicy:getComputedStyle(sheet).overflowX});
@@ -102,6 +109,21 @@ try {
     merchant: "테스트상점".repeat(12),
     memo: "긴메모".repeat(100),
   });
+  for (const [day, type, amount] of [
+    ["01", "expense", 12345678],
+    ["02", "expense", 99994000],
+    ["03", "expense", 123456789],
+    ["03", "income", 12345678],
+  ]) {
+    await create("transactions", {
+      type,
+      amount,
+      asset_id: bank.id,
+      category_id: type === "expense" ? category.id : undefined,
+      occurred_at: `${kstMonth()}-${day}T10:00:00+09:00`,
+      merchant: "테스트마트",
+    });
+  }
   server = Bun.serve({ hostname: "127.0.0.1", port, fetch: app.app.fetch });
   view = new Bun.WebView({
     backend: { type: "chrome", url: false },
@@ -144,11 +166,29 @@ try {
     ["data", "/settings/data"],
     ["preferences", "/settings/preferences"],
   ];
+  const iconLeft = (selector) =>
+    view.evaluate(`document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect().left ?? null`);
   for (const width of [390, 375, 320]) {
+    let dailyIconLeft = null;
     for (const [label, route] of focusedEdit ? [] : routes) {
       await view.navigate(base + route);
       await view.resize(width, 844);
-      await settled();
+      if (label === "daily") {
+        await settled("document.querySelector('.daily-day-rows .category-icon')");
+        dailyIconLeft = await iconLeft(".daily-day-rows .category-icon");
+      } else if (label === "calendar") {
+        await settled("document.querySelector('.calendar-transactions .category-icon')");
+        const calendarIconLeft = await iconLeft(".calendar-transactions .category-icon");
+        if (dailyIconLeft === null || calendarIconLeft === null || Math.abs(calendarIconLeft - dailyIconLeft) > 1) {
+          findings.push({
+            label,
+            width,
+            issues: [{ element: "day detail icon inset", dailyIconLeft, calendarIconLeft }],
+          });
+        }
+      } else {
+        await settled();
+      }
       await inspect(label, width);
     }
     await view.navigate(`${base}/?month=${kstMonth()}`);
