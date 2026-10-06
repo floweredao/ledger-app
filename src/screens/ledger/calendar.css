@@ -52,9 +52,9 @@
   min-inline-size: var(--hit-min);
   min-block-size: 68px;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--space-1);
-  padding: var(--space-1) 0;
+  padding: var(--space-1) 2px;
   border-radius: var(--radius-input);
   color: var(--text);
   text-align: start;
@@ -97,8 +97,10 @@
   display: block;
   inline-size: 100%;
   font-size: var(--text-xs);
+  letter-spacing: -0.02em;
   line-height: var(--leading-snug);
   overflow-wrap: anywhere;
+  text-align: center;
   white-space: normal;
 }
 
@@ -181,7 +183,12 @@
 
   .calendar-day {
     min-block-size: calc(var(--row-h) + var(--space-8));
+    align-items: flex-start;
     padding: var(--space-2);
+  }
+
+  .calendar-day-amount {
+    text-align: start;
   }
 
   .calendar-day-number {

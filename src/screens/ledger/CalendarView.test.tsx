@@ -63,6 +63,27 @@ beforeEach(() => {
           }),
         );
       }
+      if (url.includes("/categories")) {
+        return new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: "category-food",
+                type: "expense",
+                parent_id: null,
+                name: "샘플식비",
+                icon: "utensils",
+                color: "cat-3",
+                sort: 1,
+                hidden: false,
+                created_at: "2026-10-01T00:00:00+09:00",
+                updated_at: "2026-10-01T00:00:00+09:00",
+                children: [],
+              },
+            ],
+          }),
+        );
+      }
       if (url.includes("/transactions?")) {
         return new Response(
           JSON.stringify({
@@ -86,12 +107,13 @@ afterEach(() => {
 });
 
 describe("CalendarView", () => {
-  test("labels each day record as expense, income, transfer or refund and keeps the original imported name", async () => {
+  test("labels each day record as expense, income, transfer or refund without repeating the original imported name", async () => {
     const base = transactions[0] ?? {};
     transactions = [
       {
         ...base,
         merchant: "샘플 구독료",
+        category_id: "category-food",
         source: "kakaobank_sms",
         source_detail: {
           kind: "체크카드결제",
@@ -111,11 +133,31 @@ describe("CalendarView", () => {
     fireEvent.click(await screen.findByRole("button", { name: /2026년 10월 4일/ }));
     const row = async (name: RegExp) => within(await screen.findByRole("button", { name }));
     expect((await row(/샘플 구독료/)).getByText("지출")).toBeTruthy();
-    expect((await row(/샘플 구독료/)).getByText("원래: SAMPLE*TESTSHOP 851")).toBeTruthy();
+    expect((await row(/샘플 구독료/)).queryByText(/원래:/)).toBeNull();
     expect((await row(/샘플 통장에서 이체/)).getByText("이체")).toBeTruthy();
     expect((await row(/샘플용돈/)).getByText("수입")).toBeTruthy();
     expect((await row(/샘플환불/)).getByText("환불")).toBeTruthy();
     expect((await row(/샘플환불/)).queryByText("지출")).toBeNull();
+  });
+
+  test("shows each day record's category icon, with the transfer and uncategorized fallbacks", async () => {
+    const base = transactions[0] ?? {};
+    transactions = [
+      { ...base, category_id: "category-food", merchant: "샘플식당" },
+      { ...base, id: "transaction-2", type: "transfer", merchant: "", amount: 30000 },
+      { ...base, id: "transaction-3", merchant: "샘플가게" },
+    ];
+    render(<CalendarView />);
+    fireEvent.click(await screen.findByRole("button", { name: /2026년 10월 4일/ }));
+    const icon = async (name: RegExp) => {
+      const row = await screen.findByRole("button", { name });
+      await waitFor(() => expect(row.querySelector(".category-icon")).toBeTruthy());
+      return row.querySelector<HTMLElement>(".category-icon");
+    };
+    await waitFor(async () => expect((await icon(/샘플식당/))?.style.backgroundColor).toBe("var(--cat-3)"));
+    expect((await icon(/샘플식당/))?.querySelector(".lucide-utensils")).toBeTruthy();
+    expect((await icon(/^이체/))?.querySelector(".lucide-arrow-left-right")).toBeTruthy();
+    expect((await icon(/샘플가게/))?.style.backgroundColor).toBe("var(--cat-12)");
   });
 
   test("selected day heading uses the shared compact date format", async () => {

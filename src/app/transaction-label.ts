@@ -1,4 +1,3 @@
-import { merchantKey } from "../../shared/merchant";
 import type { Transaction } from "../../shared/schema";
 
 export const TRANSFER_ICON = "arrow-left-right";
@@ -8,14 +7,6 @@ export function transactionTitle(transaction: Transaction, categoryName: string 
   if (transaction.merchant.trim()) return transaction.merchant;
   if (transaction.type === "transfer") return "이체";
   return categoryName ?? "분류 없음";
-}
-
-/** "원래: <bank wording>" once the owner renamed an imported record; undefined while the title still matches. */
-export function originalNameLine(transaction: Transaction): string | undefined {
-  // Same trimming the importer applies to build the first merchant (drops a cut-off "(…" tail).
-  const counterparty = transaction.source_detail?.counterparty.replace(/\([^()]*$/, "").trim();
-  if (!counterparty || merchantKey(counterparty) === merchantKey(transaction.merchant)) return undefined;
-  return `원래: ${counterparty}`;
 }
 
 /** "보내는 자산 → 받는 자산" for transfers once both names are known; otherwise undefined. */

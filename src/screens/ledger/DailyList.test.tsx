@@ -103,7 +103,7 @@ afterEach(() => {
 });
 
 describe("DailyList", () => {
-  test("a renamed automatic record shows its original imported name; an unchanged one does not repeat it", async () => {
+  test("a renamed automatic record does not show an original-name line", async () => {
     const renamed = transaction({
       id: "renamed-1",
       source: "kakaobank_sms",
@@ -147,7 +147,8 @@ describe("DailyList", () => {
       navigate(`/?month=${month}`, { replace: true });
       render(<DailyList />);
       const renamedRow = await screen.findByRole("button", { name: /샘플 구독료/ });
-      expect(renamedRow.textContent).toContain("원래: SAMPLE*TESTSHOP 851");
+      expect(renamedRow.textContent).not.toContain("원래:");
+      expect(renamedRow.textContent).not.toContain("SAMPLE*TESTSHOP 851");
       expect(screen.getByRole("button", { name: /샘플가게/ }).textContent).not.toContain("원래:");
     } finally {
       globalThis.fetch = originalFetch;

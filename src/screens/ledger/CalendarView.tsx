@@ -1,14 +1,15 @@
 import { type KeyboardEvent, useEffect, useMemo, useState } from "react";
 import { addDays, daysInMonth, formatDisplayDate, kstDate } from "../../../shared/dates";
 import { compactWon, formatSigned } from "../../../shared/money";
-import type { StatsCalendar, TransactionList } from "../../../shared/schema";
+import type { CategoryNode, StatsCalendar, TransactionList } from "../../../shared/schema";
 import { paths } from "../../api/client";
 import { useApi } from "../../api/hooks";
 import { openEntry } from "../../app/entry-bridge";
 import { formatMonth } from "../../app/periods";
-import { originalNameLine } from "../../app/transaction-label";
+import { TRANSFER_ICON } from "../../app/transaction-label";
 import { AmountText } from "../../components/AmountText";
 import { Button } from "../../components/Button";
+import { CategoryIcon } from "../../components/CategoryIcon";
 import { EmptyState } from "../../components/EmptyState";
 import { Badge, ListRow } from "../../components/ListRow";
 import { Skeleton } from "../../components/Skeleton";
@@ -44,6 +45,12 @@ function signedCompact(kind: "income" | "expense", amount: number): string {
 
 function DayTransactions({ date }: { readonly date: string }) {
   const transactions = useApi<TransactionList>(paths.transactions({ from: date, to: date, limit: 1000 }));
+  const categories = useApi<{ readonly items: readonly CategoryNode[] }>(paths.categories({ include_hidden: true }));
+  const categoryMap = new Map(
+    (categories.data?.items ?? [])
+      .flatMap((category) => [category, ...(category.children ?? [])])
+      .map((category) => [category.id, category]),
+  );
   if (transactions.data === undefined && transactions.loading) {
     return <Skeleton label="날짜별 거래 불러오는 중" />;
   }
@@ -70,15 +77,17 @@ function DayTransactions({ date }: { readonly date: string }) {
             ? `${transaction.type === "expense" && !transaction.is_refund ? "-" : transaction.type === "transfer" ? "" : "+"}${transaction.currency} ${transaction.foreign_amount.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}`
             : null;
         const kind = transaction.type === "expense" && transaction.is_refund ? "refund" : transaction.type;
-        const subtitle = [
-          transaction.merchant && transaction.memo ? transaction.memo : undefined,
-          originalNameLine(transaction),
-        ]
-          .filter(Boolean)
-          .join(" · ");
+        const category = transaction.category_id ? categoryMap.get(transaction.category_id) : undefined;
+        const subtitle = transaction.merchant && transaction.memo ? transaction.memo : undefined;
         return (
           <li key={transaction.id}>
             <ListRow
+              leading={
+                <CategoryIcon
+                  icon={category?.icon ?? (transaction.type === "transfer" ? TRANSFER_ICON : undefined)}
+                  color={category?.color}
+                />
+              }
               title={
                 transaction.merchant ||
                 transaction.memo ||
