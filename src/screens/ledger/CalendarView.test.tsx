@@ -107,6 +107,46 @@ afterEach(() => {
 });
 
 describe("CalendarView", () => {
+  test("shows each day record's category, with the parent in front of a child category", async () => {
+    const base = transactions[0] ?? {};
+    transactions = [
+      { ...base, merchant: "샘플편의점", category_id: "category-snack" },
+      { ...base, id: "transaction-2", merchant: "샘플식당", category_id: "category-food", memo: "점심" },
+      { ...base, id: "transaction-3", type: "transfer", merchant: "샘플이체", amount: 30000 },
+    ];
+    const baseFetch = globalThis.fetch;
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL) => {
+        if (!String(input).includes("/categories")) return baseFetch(input);
+        const food = {
+          id: "category-food",
+          type: "expense",
+          parent_id: null,
+          name: "샘플식비",
+          icon: "utensils",
+          color: "cat-3",
+          sort: 1,
+          hidden: false,
+          created_at: "2026-10-01T00:00:00+09:00",
+          updated_at: "2026-10-01T00:00:00+09:00",
+        };
+        return Response.json({
+          items: [
+            { ...food, children: [{ ...food, id: "category-snack", parent_id: "category-food", name: "샘플간식" }] },
+          ],
+        });
+      },
+      { preconnect: realFetch.preconnect },
+    );
+    render(<CalendarView />);
+    fireEvent.click(await screen.findByRole("button", { name: /2026년 10월 4일/ }));
+    const subtitle = async (name: RegExp) =>
+      (await screen.findByRole("button", { name })).querySelector(".list-row-subtitle")?.textContent;
+    await waitFor(async () => expect(await subtitle(/샘플편의점/)).toBe("지출샘플식비 › 샘플간식"));
+    expect(await subtitle(/샘플식당/)).toBe("지출샘플식비 · 점심");
+    expect(await subtitle(/샘플이체/)).toBe("이체");
+  });
+
   test("labels each day record as expense, income, transfer or refund without repeating the original imported name", async () => {
     const base = transactions[0] ?? {};
     transactions = [

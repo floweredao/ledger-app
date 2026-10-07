@@ -2,10 +2,11 @@ import { ArrowLeft, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { formatDisplayDate, kstDate } from "../../../shared/dates";
 import { formatWon } from "../../../shared/money";
-import type { AssetSummary, Transaction, TransactionList } from "../../../shared/schema";
+import type { AssetSummary, Category, CategoryNode, Transaction, TransactionList } from "../../../shared/schema";
 import { api, isApiError, paths } from "../../api/client";
 import { invalidate, useApi } from "../../api/hooks";
 import { openEntry } from "../../app/entry-bridge";
+import { rowCategoryLabel } from "../../app/transaction-label";
 import { AmountText } from "../../components/AmountText";
 import { Button } from "../../components/Button";
 import { ConfirmDialog } from "../../components/Dialog";
@@ -20,6 +21,12 @@ import { CardStatement } from "./CardStatement";
 import "./assets.css";
 
 function AssetTransactions({ items }: { readonly items: readonly Transaction[] }) {
+  const categories = useApi<{ readonly items: readonly CategoryNode[] }>(paths.categories({ include_hidden: true }));
+  const categoryMap = new Map<string, Category>(
+    (categories.data?.items ?? [])
+      .flatMap((category) => [category, ...(category.children ?? [])])
+      .map((category) => [category.id, category]),
+  );
   const grouped = new Map<string, Transaction[]>();
   for (const item of items) {
     const date = kstDate(item.occurred_at);
@@ -38,13 +45,16 @@ function AssetTransactions({ items }: { readonly items: readonly Transaction[] }
               item.currency !== "KRW" && item.foreign_amount !== null
                 ? `${item.type === "expense" && !item.is_refund ? "-" : item.type === "transfer" ? "" : "+"}${item.currency} ${item.foreign_amount.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}`
                 : null;
+            const title = item.merchant || "이체";
+            const categoryLabel = rowCategoryLabel(item.category_id, (id) => categoryMap.get(id), title);
             return (
               <ListRow
                 key={item.id}
-                title={item.merchant || "이체"}
+                title={title}
                 subtitle={
-                  [item.memo, item.krw_status !== "pending" ? foreignAmount : null].filter(Boolean).join(" · ") ||
-                  undefined
+                  [categoryLabel, item.memo, item.krw_status !== "pending" ? foreignAmount : null]
+                    .filter(Boolean)
+                    .join(" · ") || undefined
                 }
                 badges={
                   <>

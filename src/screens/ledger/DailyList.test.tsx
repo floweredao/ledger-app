@@ -405,6 +405,42 @@ test("nested category and asset names are resolved from the real response shapes
   }
 });
 
+test("each record shows its category, with the parent in front of a child category", async () => {
+  const parent = categories.items[0];
+  if (!parent) throw new Error("Category fixture missing");
+  const tree = {
+    items: [{ ...parent, children: [{ ...parent, id: "child-snack", parent_id: parent.id, name: "간식" }] }],
+  };
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = Object.assign(
+    async (input: RequestInfo | URL) => {
+      const url = String(input);
+      const body = url.includes("categories")
+        ? tree
+        : url.includes("assets")
+          ? { items: [{ id: "asset-1", name: "테스트통장" }] }
+          : list([
+              transaction({ merchant: "샘플편의점", category_id: "child-snack", memo: "" }),
+              transaction({ merchant: "샘플식당", category_id: parent.id, memo: "" }),
+            ]);
+      return new Response(JSON.stringify(body));
+    },
+    { preconnect: originalFetch.preconnect },
+  );
+  try {
+    navigate("/?month=2026-10", { replace: true });
+    render(<DailyList />);
+    const snack = await screen.findByRole("button", { name: /샘플편의점/ });
+    await waitFor(() =>
+      expect(snack.querySelector(".list-row-subtitle")?.textContent).toBe("식비 › 간식 · 테스트통장"),
+    );
+    const meal = screen.getByRole("button", { name: /샘플식당/ });
+    expect(meal.querySelector(".list-row-subtitle")?.textContent).toBe("식비 · 테스트통장");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("a transfer without a merchant names the transfer and both assets instead of a missing category", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = Object.assign(

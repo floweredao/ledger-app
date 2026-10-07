@@ -6,7 +6,7 @@ import { paths } from "../../api/client";
 import { useApi } from "../../api/hooks";
 import { openEntry } from "../../app/entry-bridge";
 import { formatMonth } from "../../app/periods";
-import { TRANSFER_ICON } from "../../app/transaction-label";
+import { rowCategoryLabel, TRANSFER_ICON } from "../../app/transaction-label";
 import { AmountText } from "../../components/AmountText";
 import { Button } from "../../components/Button";
 import { CategoryIcon } from "../../components/CategoryIcon";
@@ -85,7 +85,14 @@ function DayTransactions({ date }: { readonly date: string }) {
             : null;
         const kind = transaction.type === "expense" && transaction.is_refund ? "refund" : transaction.type;
         const category = transaction.category_id ? categoryMap.get(transaction.category_id) : undefined;
-        const subtitle = transaction.merchant && transaction.memo ? transaction.memo : undefined;
+        const title =
+          transaction.merchant || transaction.memo || (transaction.type === "transfer" ? "이체" : "이름 없는 거래");
+        const subtitle = [
+          rowCategoryLabel(transaction.category_id, (id) => categoryMap.get(id), title),
+          transaction.merchant && transaction.memo ? transaction.memo : undefined,
+        ]
+          .filter(Boolean)
+          .join(" · ");
         return (
           <li key={transaction.id}>
             <ListRow
@@ -95,11 +102,7 @@ function DayTransactions({ date }: { readonly date: string }) {
                   color={category?.color}
                 />
               }
-              title={
-                transaction.merchant ||
-                transaction.memo ||
-                (transaction.type === "transfer" ? "이체" : "이름 없는 거래")
-              }
+              title={title}
               subtitle={subtitle || undefined}
               badges={
                 <span className="calendar-badges">

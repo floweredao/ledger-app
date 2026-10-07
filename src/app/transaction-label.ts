@@ -1,4 +1,4 @@
-import type { Transaction } from "../../shared/schema";
+import type { Category, Transaction } from "../../shared/schema";
 
 export const TRANSFER_ICON = "arrow-left-right";
 
@@ -7,6 +7,26 @@ export function transactionTitle(transaction: Transaction, categoryName: string 
   if (transaction.merchant.trim()) return transaction.merchant;
   if (transaction.type === "transfer") return "이체";
   return categoryName ?? "분류 없음";
+}
+
+type CategoryLookup = (id: string) => Pick<Category, "name" | "parent_id"> | undefined;
+
+/** "상위 › 하위" for a child category, the name alone for a top-level one; undefined when uncategorized or unknown. */
+export function categoryPath(categoryId: string | null | undefined, lookup: CategoryLookup): string | undefined {
+  const category = categoryId ? lookup(categoryId) : undefined;
+  if (!category) return undefined;
+  const parent = category.parent_id ? lookup(category.parent_id) : undefined;
+  return parent ? `${parent.name} › ${category.name}` : category.name;
+}
+
+/** The category path for a row's secondary line, skipped when the title already reads as that category. */
+export function rowCategoryLabel(
+  categoryId: string | null | undefined,
+  lookup: CategoryLookup,
+  title: string,
+): string | undefined {
+  const path = categoryPath(categoryId, lookup);
+  return path === title ? undefined : path;
 }
 
 /** "보내는 자산 → 받는 자산" for transfers once both names are known; otherwise undefined. */

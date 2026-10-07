@@ -293,6 +293,46 @@ test("successful deletion returns to assets list", async () => {
   fireEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "삭제" }));
   await waitFor(() => expect(location.pathname).toBe("/assets"));
 });
+test("asset transaction rows show the record's category with its parent", async () => {
+  mockFetch((url) =>
+    json(
+      url.includes("summary")
+        ? summary
+        : url.includes("categories")
+          ? {
+              items: [
+                {
+                  id: "food",
+                  name: "식비",
+                  parent_id: null,
+                  children: [{ id: "snack", name: "간식", parent_id: "food" }],
+                },
+                { id: "transport", name: "교통", parent_id: null, children: [] },
+              ],
+            }
+          : {
+              items: ["snack", "transport"].map((category_id) => ({
+                id: `tx-${category_id}`,
+                occurred_at: "2026-10-03T12:00:00+09:00",
+                type: "expense",
+                amount: 3000,
+                category_id,
+                merchant: `샘플-${category_id}`,
+                memo: "",
+                currency: "KRW",
+                foreign_amount: null,
+                krw_status: "exact",
+                is_refund: false,
+              })),
+            },
+    ),
+  );
+  render(<AssetDetail id="bank" />);
+  const snack = await screen.findByRole("button", { name: /샘플-snack/ });
+  await waitFor(() => expect(snack.querySelector(".list-row-subtitle")?.textContent).toBe("식비 › 간식"));
+  const transport = screen.getByRole("button", { name: /샘플-transport/ });
+  expect(transport.querySelector(".list-row-subtitle")?.textContent).toBe("교통");
+});
 test("transaction row opens entry with id instead of broken route", async () => {
   mockFetch((url) =>
     json(

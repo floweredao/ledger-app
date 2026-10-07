@@ -79,6 +79,12 @@ afterEach(() => {
 });
 
 describe("SearchScreen", () => {
+  test("result rows show the parent and child category in front of the memo", async () => {
+    render(<SearchScreen />);
+    const row = await screen.findByRole("button", { name: /샘플카페/ });
+    await waitFor(() => expect(row.querySelector(".list-row-subtitle")?.textContent).toBe("식비 › 카페 · 점심"));
+  });
+
   for (const mode of ["share", "cancel", "download"] as const) {
     test(`filtered export uses the ${mode} file workflow`, async () => {
       const baseFetch = globalThis.fetch;

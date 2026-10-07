@@ -15,7 +15,7 @@ import { download, paths } from "../../api/client";
 import { useApi } from "../../api/hooks";
 import { isPendingTransaction } from "../../api/outbox";
 import { openEntry } from "../../app/entry-bridge";
-import { TRANSFER_ICON, transactionTitle, transferRoute } from "../../app/transaction-label";
+import { rowCategoryLabel, TRANSFER_ICON, transactionTitle, transferRoute } from "../../app/transaction-label";
 import { AmountText } from "../../components/AmountText";
 import { Button } from "../../components/Button";
 import { CategoryIcon } from "../../components/CategoryIcon";
@@ -82,7 +82,15 @@ function TransactionRow({
     </>
   );
   const route = transferRoute(transaction, (id) => assets.find((item) => item.id === id)?.name);
-  const subtitle = [transaction.memo, route ?? asset?.name ?? transaction.src_account].filter(Boolean).join(" · ");
+  const title = transactionTitle(transaction, category?.name);
+  const categoryLabel = rowCategoryLabel(
+    transaction.category_id,
+    (id) => categories.find((item) => item.id === id),
+    title,
+  );
+  const subtitle = [categoryLabel, transaction.memo, route ?? asset?.name ?? transaction.src_account]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <ListRow
       leading={
@@ -91,7 +99,7 @@ function TransactionRow({
           color={category?.color}
         />
       }
-      title={transactionTitle(transaction, category?.name)}
+      title={title}
       subtitle={subtitle || undefined}
       badges={badges}
       trailing={
