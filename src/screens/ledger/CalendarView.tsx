@@ -1,4 +1,4 @@
-import { type CSSProperties, type KeyboardEvent, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
 import { addDays, daysInMonth, formatDisplayDate, kstDate } from "../../../shared/dates";
 import { compactWon, formatSigned } from "../../../shared/money";
 import type { CategoryNode, StatsCalendar, TransactionList } from "../../../shared/schema";
@@ -142,6 +142,7 @@ export default function CalendarView() {
     currentDate.startsWith(month) ? currentDate : firstDate(month),
   );
   const [keyboardFocusDate, setKeyboardFocusDate] = useState<string | null>(null);
+  const dayPanelRef = useRef<HTMLElement>(null);
   const calendar = useApi<StatsCalendar>(paths.statsCalendar(month));
   const gridDates = useMemo(() => makeGrid(month), [month]);
   const totalsByDate = useMemo(
@@ -165,6 +166,15 @@ export default function CalendarView() {
   const selectDate = (date: string) => {
     if (!date.startsWith(month)) setMonth(date.slice(0, 7));
     setSelectedDate(date);
+  };
+
+  /** Tapping the already selected day jumps to its records; html scroll-padding keeps the heading clear of the top bar. */
+  const revealDayPanel = () => {
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    dayPanelRef.current?.scrollIntoView({
+      behavior: reduceMotion ? "auto" : "smooth",
+      block: window.innerWidth < 900 ? "start" : "nearest",
+    });
   };
 
   const onDayKeyDown = (event: KeyboardEvent<HTMLButtonElement>, date: string) => {
@@ -225,7 +235,7 @@ export default function CalendarView() {
                       data-today={today || undefined}
                       aria-label={accessibleLabel}
                       aria-pressed={selected}
-                      onClick={() => selectDate(date)}
+                      onClick={() => (selected ? revealDayPanel() : selectDate(date))}
                       onKeyDown={(event) => onDayKeyDown(event, date)}
                     >
                       <span className="calendar-day-number num">{Number(date.slice(-2))}</span>
@@ -256,7 +266,7 @@ export default function CalendarView() {
             </>
           )}
         </div>
-        <aside className="calendar-day-panel" aria-label={`${dayLabel(selectedDate)} 내역`}>
+        <aside ref={dayPanelRef} className="calendar-day-panel" aria-label={`${dayLabel(selectedDate)} 내역`}>
           <div className="calendar-day-heading">
             <div>
               <h2 className="section-title">{formatDisplayDate(selectedDate)}</h2>

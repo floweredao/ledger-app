@@ -190,6 +190,48 @@ describe("CalendarView", () => {
     }
   });
 
+  test("tapping the already selected day scrolls its record list into view, a new selection does not", async () => {
+    const calls: { element: Element; options: unknown }[] = [];
+    const originalScroll = Element.prototype.scrollIntoView;
+    const originalMatchMedia = window.matchMedia;
+    let reduced = false;
+    Element.prototype.scrollIntoView = function (this: Element, options?: boolean | ScrollIntoViewOptions) {
+      calls.push({ element: this, options });
+    };
+    window.matchMedia = ((query: string) =>
+      ({
+        matches: query.includes("prefers-reduced-motion: reduce") && reduced,
+        media: query,
+      }) as MediaQueryList) as typeof window.matchMedia;
+    const setWidth = (value: number) => Object.defineProperty(window, "innerWidth", { value, configurable: true });
+    const width = window.innerWidth;
+    try {
+      setWidth(390);
+      render(<CalendarView />);
+      const day = await screen.findByRole("button", { name: /2026년 10월 5일/ });
+      fireEvent.click(day);
+      expect(calls).toEqual([]);
+
+      fireEvent.click(day);
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.element.getAttribute("aria-label")).toBe("2026년 10월 5일 월요일 내역");
+      expect(calls[0]?.options).toEqual({ behavior: "smooth", block: "start" });
+
+      reduced = true;
+      fireEvent.click(day);
+      expect(calls[1]?.options).toEqual({ behavior: "auto", block: "start" });
+
+      reduced = false;
+      setWidth(1440);
+      fireEvent.click(day);
+      expect(calls[2]?.options).toEqual({ behavior: "smooth", block: "nearest" });
+    } finally {
+      Element.prototype.scrollIntoView = originalScroll;
+      window.matchMedia = originalMatchMedia;
+      setWidth(width);
+    }
+  });
+
   test("lays out October 2026 from Sunday and renders daily totals", async () => {
     render(<CalendarView />);
 
