@@ -8,6 +8,7 @@
 - API나 데이터 동작을 바꾸기 전에 `docs/API.md`를 먼저 읽어요. 엔드포인트를 추가하거나 바꾸면 같은 변경에서 문서도 고쳐요.
 - 레이아웃, 모션, 인터랙션, 플랫폼 관례를 정할 때는 StyleGallery를 참고해요. 위치는 `$(npm root -g)/stylegallery`이고 `README.md`부터 읽어요. CLI는 `stylegallery`, `stylegallery-material`이에요. 프로젝트 디자인 시스템(`DESIGN.md`)과 오너의 명시적 선택이 우선이에요.
 - 런타임과 포트는 `docs/runtime.md`에 있어요.
+- 한국어 문서 이름은 README-ko.md로 통일한다.
 
 ## 검증
 
