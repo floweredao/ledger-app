@@ -25,6 +25,20 @@ function asset(
   return id;
 }
 
+/** Owner-set `transfer_counterparties` setting: transfers with these people move money to or from their asset. */
+function counterpartyAsset(db: Database, counterparty: string): string | null {
+  const row = db.query<{ value: string }, []>("SELECT value FROM settings WHERE key='transfer_counterparties'").get();
+  const rules: { name: string; asset_id: string }[] = row ? JSON.parse(row.value) : [];
+  const key = merchantKey(counterparty);
+  for (const rule of rules) {
+    const name = merchantKey(rule.name);
+    if (name !== "" && key.includes(name) && db.query("SELECT 1 FROM assets WHERE id=?").get(rule.asset_id)) {
+      return rule.asset_id;
+    }
+  }
+  return null;
+}
+
 export type MappedEntry = {
   readonly input: TransactionInput;
   readonly options: InsertOptions;
@@ -69,8 +83,12 @@ export function mapEntry(db: Database, entry: Entry, previousBalance: number | n
   let type: TransactionInput["type"] = refund || entry.amount <= 0 ? "expense" : "income";
   let assetId = bank;
   let toAssetId: string | null = null;
-  if (ownTransfer) {
-    const other = asset(db, SELF_TRANSFER_REF, "내 다른 계좌", "other", 0, null);
+  const other = ownTransfer
+    ? asset(db, SELF_TRANSFER_REF, "내 다른 계좌", "other", 0, null)
+    : /이체|입금/.test(entry.kind) && !refund
+      ? counterpartyAsset(db, entry.counterparty)
+      : null;
+  if (other) {
     type = "transfer";
     assetId = entry.amount < 0 ? bank : other;
     toAssetId = entry.amount < 0 ? other : bank;
