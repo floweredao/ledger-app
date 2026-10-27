@@ -38,5 +38,5 @@ export async function loadEntries(modulePath: string): Promise<Entry[]> {
 export function sourceKey(entry: Entry): string {
   return entry.source === "excel"
     ? `kb-excel:${entry.account}|${entry.at}|${entry.amount}|${entry.balance}`
-    : `kb-sms:${entry.id}`;
+    : `kb-sms:${entry.account}|${entry.at}|${entry.amount}|${entry.balance}`;
 }

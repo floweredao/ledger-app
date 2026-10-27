@@ -89,6 +89,23 @@ describe("KakaoBank importer", () => {
     expect(await importer.run()).toMatchObject({ inserted: 0, skipped: 1 });
   });
 
+  test("imports a new transaction when a rebuilt Messages database reuses an old SMS id", async () => {
+    setEntries([entry()]);
+    await importer.run();
+    const originalId = transaction().id;
+    db.query("UPDATE transactions SET source_key='kb-sms:1' WHERE id=?").run(originalId);
+    const original = getTransaction(db, originalId);
+    const reused = entry({ at: at(5), balance: 91000 });
+    setEntries([entry(), reused]);
+
+    expect(await importer.run()).toMatchObject({ inserted: 1, skipped: 1, errors: [] });
+    expect(rows()).toHaveLength(2);
+    expect(getTransaction(db, originalId)).toEqual(original);
+    expect(transaction(1)).toMatchObject({ src_at: at(5), src_amount: -4500 });
+    expect(await importer.run()).toMatchObject({ inserted: 0, skipped: 2, errors: [] });
+    expect(rows()).toHaveLength(2);
+  });
+
   for (const field of ["amount", "asset_id", "occurred_at", "memo", "deleted_at"] as const) {
     test(`merges excel in place after owner changes ${field}`, async () => {
       setEntries([entry()]);
