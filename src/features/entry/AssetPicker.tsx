@@ -1,6 +1,8 @@
 import { useId } from "react";
 import type { Asset } from "../../../shared/schema";
 import { Chip } from "../../components/Chip";
+import { useMessages } from "../../i18n";
+import { entryMessages } from "./messages";
 
 type Props = {
   readonly label: string;
@@ -11,12 +13,13 @@ type Props = {
 };
 
 export function AssetPicker({ label, assets, value, onChange, error }: Props) {
+  const t = useMessages(entryMessages);
   const id = useId();
   return (
     <fieldset className="entry-section entry-fieldset" aria-describedby={error ? `${id}-error` : undefined}>
       <legend className="entry-label">{label}</legend>
       {assets.length === 0 ? (
-        <p className="entry-hint">등록된 자산이 없어요. 자산 화면에서 먼저 추가해 주세요.</p>
+        <p className="entry-hint">{t.noAssets}</p>
       ) : (
         <div className="chip-row">
           {assets.map((asset) => (

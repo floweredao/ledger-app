@@ -4,21 +4,24 @@ import type { PeriodKind } from "../../../shared/dates";
 import { kstDate } from "../../../shared/dates";
 import { RangeQuerySchema } from "../../../shared/schema";
 import { formatRange, type InclusiveRange, periodFor, shiftPeriod } from "../../app/periods";
+import { messages, useMessages } from "../../i18n";
 import { navigate } from "../../router";
 import { Button, IconButton } from "../Button";
 import { SegmentedControl } from "../SegmentedControl";
+import { chartMessages } from "./messages";
 
-const PERIODS = [
-  { value: "week", label: "주" },
-  { value: "month", label: "월" },
-  { value: "year", label: "년" },
-  { value: "custom", label: "기간" },
-] as const;
+const periods = () =>
+  [
+    { value: "week", label: messages(chartMessages).week },
+    { value: "month", label: messages(chartMessages).month },
+    { value: "year", label: messages(chartMessages).year },
+    { value: "custom", label: messages(chartMessages).custom },
+  ] as const;
 export type StatsPeriod = Exclude<PeriodKind, "day"> | "custom";
 export type StatsType = "expense" | "income";
 
 export function parseStatsPeriod(value: string | null): StatsPeriod {
-  return PERIODS.find((period) => period.value === value)?.value ?? "month";
+  return periods().find((period) => period.value === value)?.value ?? "month";
 }
 
 export function parseStatsType(value: string | null): StatsType {
@@ -50,6 +53,7 @@ type Props = {
 };
 
 export function StatsPeriodPicker({ period, range, type, monthStartDay }: Props) {
+  const m = useMessages(chartMessages);
   const [from, setFrom] = useState(range.from);
   const [to, setTo] = useState(range.to);
   const [error, setError] = useState("");
@@ -72,32 +76,37 @@ export function StatsPeriodPicker({ period, range, type, monthStartDay }: Props)
   };
   const applyRange = () => {
     if (!from || !to) {
-      setError("시작일과 종료일을 입력해 주세요");
+      setError(m.enterDates);
       return;
     }
     if (from > to) {
-      setError("시작일은 종료일보다 늦을 수 없어요");
+      setError(m.invalidRange);
       return;
     }
     updateRoute("custom", { from, to }, type);
   };
 
   return (
-    <section className="stats-period" aria-label="통계 기간">
-      <SegmentedControl label="통계 기간" options={PERIODS} value={period} onChange={changePeriod} />
+    <section className="stats-period" aria-label={m.statisticsPeriod}>
+      <SegmentedControl label={m.statisticsPeriod} options={periods()} value={period} onChange={changePeriod} />
       {period === "custom" ? (
         <div className="stats-custom-range">
           <label className="stats-date-field">
-            <span>시작일</span>
-            <input aria-label="시작일" type="date" value={from} onChange={(event) => setFrom(event.target.value)} />
+            <span>{m.startDate}</span>
+            <input
+              aria-label={m.startDate}
+              type="date"
+              value={from}
+              onChange={(event) => setFrom(event.target.value)}
+            />
           </label>
           <span aria-hidden="true">–</span>
           <label className="stats-date-field">
-            <span>종료일</span>
-            <input aria-label="종료일" type="date" value={to} onChange={(event) => setTo(event.target.value)} />
+            <span>{m.endDate}</span>
+            <input aria-label={m.endDate} type="date" value={to} onChange={(event) => setTo(event.target.value)} />
           </label>
           <Button variant="secondary" size="sm" onClick={applyRange}>
-            기간 적용
+            {m.applyRange}
           </Button>
           {error ? (
             <p className="stats-period-error" role="alert">
@@ -107,11 +116,11 @@ export function StatsPeriodPicker({ period, range, type, monthStartDay }: Props)
         </div>
       ) : (
         <div className="stats-period-nav">
-          <IconButton label="이전 기간" icon={ChevronLeft} onClick={() => step(-1)} />
+          <IconButton label={m.previousPeriod} icon={ChevronLeft} onClick={() => step(-1)} />
           <p className="stats-period-range num" aria-live="polite">
             {formatRange(range)}
           </p>
-          <IconButton label="다음 기간" icon={ChevronRight} onClick={() => step(1)} />
+          <IconButton label={m.nextPeriod} icon={ChevronRight} onClick={() => step(1)} />
         </div>
       )}
     </section>

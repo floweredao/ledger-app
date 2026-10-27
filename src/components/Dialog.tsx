@@ -1,4 +1,6 @@
 import { useRef } from "react";
+import { useMessages } from "../i18n";
+import { common } from "../i18n/common";
 import { Button } from "./Button";
 import { Sheet, type SheetProps } from "./Sheet";
 
@@ -23,12 +25,14 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
-  cancelLabel = "취소",
+  cancelLabel,
   destructive = false,
   busy = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const c = useMessages(common);
+
   const cancelRef = useRef<HTMLButtonElement>(null);
   return (
     <Sheet
@@ -42,7 +46,7 @@ export function ConfirmDialog({
       footer={
         <>
           <Button ref={cancelRef} onClick={onCancel}>
-            {cancelLabel}
+            {cancelLabel ?? c.cancel}
           </Button>
           <Button variant={destructive ? "danger" : "primary"} onClick={onConfirm} disabled={busy}>
             {confirmLabel}

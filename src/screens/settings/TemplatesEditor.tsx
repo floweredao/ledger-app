@@ -11,11 +11,15 @@ import {
   TransactionInputSchema,
   TransactionTypeSchema,
 } from "../../../shared/schema";
-import { api, type Items, paths } from "../../api/client";
+import { api, apiErrorMessage, type Items, paths } from "../../api/client";
 import { invalidate, useApi, useOnline } from "../../api/hooks";
 import { Button, IconButton } from "../../components/Button";
 import { Field, Input, Select, Textarea } from "../../components/Field";
 import { Sheet } from "../../components/Sheet";
+import { messages, useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
+import { formatWon } from "../../i18n/format";
+import { settingsMessages, validationMessage } from "./messages";
 import "./recurring.css";
 
 const recordFromTemplate = api.useTemplate;
@@ -61,7 +65,9 @@ export function parsePayload(draft: PayloadDraft) {
         errors: Object.fromEntries(
           result.error.issues.map((issue) => [
             String(issue.path[0]),
-            issue.path[0] === "to_asset_id" ? "서로 다른 받는 자산을 선택해 주세요" : issue.message,
+            issue.path[0] === "to_asset_id"
+              ? messages(settingsMessages).differentAsset
+              : validationMessage(issue.message),
           ]),
         ),
       };
@@ -76,24 +82,26 @@ export function PayloadFields({
   readonly onChange: (draft: PayloadDraft) => void;
   readonly errors: Readonly<Record<string, string>>;
 }) {
+  const m = useMessages(settingsMessages);
+  const c = useMessages(common);
   const assets = useApi<Items<Asset>>(paths.assets());
   const categories = useApi<Items<CategoryNode>>(paths.categories());
   return (
     <>
       {Boolean(assets.error || categories.error) && (
         <div role="alert">
-          자산·분류를 불러오지 못했어요{" "}
+          {m.referencesFailed}{" "}
           <Button
             onClick={() => {
               assets.reload();
               categories.reload();
             }}
           >
-            다시 시도
+            {c.retry}
           </Button>
         </div>
       )}
-      <Field label="거래 유형">
+      <Field label={m.type}>
         {(control) => (
           <Select
             {...control}
@@ -108,13 +116,13 @@ export function PayloadFields({
               })
             }
           >
-            <option value="expense">지출</option>
-            <option value="income">수입</option>
-            <option value="transfer">이체</option>
+            <option value="expense">{c.expense}</option>
+            <option value="income">{c.income}</option>
+            <option value="transfer">{c.transfer}</option>
           </Select>
         )}
       </Field>
-      <Field label="금액" error={errors.amount ?? null}>
+      <Field label={m.amount} error={errors.amount ?? null}>
         {(control) => (
           <Input
             {...control}
@@ -126,14 +134,14 @@ export function PayloadFields({
           />
         )}
       </Field>
-      <Field label="자산" error={errors.asset_id ?? null}>
+      <Field label={m.asset} error={errors.asset_id ?? null}>
         {(control) => (
           <Select
             {...control}
             value={draft.asset_id}
             onChange={(event) => onChange({ ...draft, asset_id: event.currentTarget.value })}
           >
-            <option value="">미지정</option>
+            <option value="">{m.unassigned}</option>
             {assets.data?.items.map((asset) => (
               <option key={asset.id} value={asset.id}>
                 {asset.name}
@@ -143,14 +151,14 @@ export function PayloadFields({
         )}
       </Field>
       {draft.type === "transfer" ? (
-        <Field label="받는 자산" error={errors.to_asset_id ?? null}>
+        <Field label={m.receivingAsset} error={errors.to_asset_id ?? null}>
           {(control) => (
             <Select
               {...control}
               value={draft.to_asset_id}
               onChange={(event) => onChange({ ...draft, to_asset_id: event.currentTarget.value })}
             >
-              <option value="">선택해 주세요</option>
+              <option value="">{m.choose}</option>
               {assets.data?.items.map((asset) => (
                 <option key={asset.id} value={asset.id}>
                   {asset.name}
@@ -160,14 +168,14 @@ export function PayloadFields({
           )}
         </Field>
       ) : (
-        <Field label="분류" error={errors.category_id ?? null}>
+        <Field label={m.category} error={errors.category_id ?? null}>
           {(control) => (
             <Select
               {...control}
               value={draft.category_id}
               onChange={(event) => onChange({ ...draft, category_id: event.currentTarget.value })}
             >
-              <option value="">미분류</option>
+              <option value="">{c.uncategorized}</option>
               {categories.data?.items
                 .filter((category) => category.type === draft.type)
                 .flatMap((category) => [
@@ -183,7 +191,7 @@ export function PayloadFields({
           )}
         </Field>
       )}
-      <Field label="가맹점" error={errors.merchant ?? null}>
+      <Field label={m.merchant} error={errors.merchant ?? null}>
         {(control) => (
           <Input
             {...control}
@@ -193,7 +201,7 @@ export function PayloadFields({
           />
         )}
       </Field>
-      <Field label="메모" error={errors.memo ?? null}>
+      <Field label={m.memo} error={errors.memo ?? null}>
         {(control) => (
           <Textarea
             {...control}
@@ -204,15 +212,15 @@ export function PayloadFields({
         )}
       </Field>
       {draft.type === "expense" && (
-        <Field label="환불">
+        <Field label={c.refund}>
           {(control) => (
             <Select
               {...control}
               value={String(draft.is_refund)}
               onChange={(event) => onChange({ ...draft, is_refund: event.currentTarget.value === "true" })}
             >
-              <option value="false">일반 지출</option>
-              <option value="true">환불</option>
+              <option value="false">{m.regularExpense}</option>
+              <option value="true">{c.refund}</option>
             </Select>
           )}
         </Field>
@@ -222,6 +230,8 @@ export function PayloadFields({
 }
 
 export default function TemplatesEditor() {
+  const m = useMessages(settingsMessages);
+  const c = useMessages(common);
   const { data, error, loading, offline, reload } = useApi<Items<Template>>(paths.templates);
   const online = useOnline();
   const [editing, setEditing] = useState<Template | "new" | null>(null);
@@ -239,7 +249,7 @@ export default function TemplatesEditor() {
       await action();
       invalidate(paths.templates);
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : "변경하지 못했어요");
+      setFailure(apiErrorMessage(error, m.changeFailed));
     } finally {
       setBusy(false);
     }
@@ -258,18 +268,18 @@ export default function TemplatesEditor() {
   return (
     <section className="recurring-screen">
       <header className="recurring-header">
-        <h1>자주 쓰는 내역</h1>
+        <h1>{m.templates}</h1>
         <Button icon={Plus} variant="primary" disabled={disabled} onClick={() => setEditing("new")}>
-          추가
+          {c.add}
         </Button>
       </header>
-      {loading && !data && <p role="status">로딩 중...</p>}
+      {loading && !data && <p role="status">{m.loading}</p>}
       {Boolean(error) && (
         <div role="alert">
-          오류가 발생했어요 <Button onClick={reload}>다시 시도</Button>
+          {m.error} <Button onClick={reload}>{c.retry}</Button>
         </div>
       )}
-      {(offline || !online) && <p className="recurring-muted">오프라인 상태예요. 캐시된 데이터를 보고 있습니다.</p>}
+      {(offline || !online) && <p className="recurring-muted">{m.offline}</p>}
       {failure && (
         <p role="alert" className="recurring-error">
           {failure}
@@ -278,9 +288,9 @@ export default function TemplatesEditor() {
       {notice && <p role="status">{notice}</p>}
       {data && templates.length === 0 && (
         <div className="recurring-empty">
-          <p>템플릿이 없어요</p>
+          <p>{m.noTemplates}</p>
           <Button disabled={disabled} onClick={() => setEditing("new")}>
-            첫 번째 템플릿 추가
+            {m.firstTemplate}
           </Button>
         </div>
       )}
@@ -289,9 +299,7 @@ export default function TemplatesEditor() {
           <article className="recurring-row" key={template.id} data-testid="template-row" data-id={template.id}>
             <div className="recurring-detail">
               <strong>{template.name}</strong>
-              <p className="num">
-                {(template.payload.amount ?? 0).toLocaleString()}원 · 사용됨 {template.use_count}회
-              </p>
+              <p className="num">{m.templateUsage(formatWon(template.payload.amount ?? 0), template.use_count)}</p>
               <p>
                 {template.payload.merchant} {template.payload.memo}
               </p>
@@ -306,24 +314,24 @@ export default function TemplatesEditor() {
                     invalidate("transactions");
                     invalidate("stats");
                     invalidate("assets");
-                    setNotice("1건 기록했어요");
+                    setNotice(m.recorded);
                   })
                 }
               >
-                기록하기
+                {c.record}
               </Button>
               {index > 0 && (
                 <Button size="sm" variant="ghost" disabled={disabled} onClick={() => move(index, -1)}>
-                  위로
+                  {m.moveUp}
                 </Button>
               )}
               {index < templates.length - 1 && (
                 <Button size="sm" variant="ghost" disabled={disabled} onClick={() => move(index, 1)}>
-                  아래로
+                  {m.moveDown}
                 </Button>
               )}
-              <IconButton label="편집" icon={Edit2} disabled={disabled} onClick={() => setEditing(template)} />
-              <IconButton label="삭제" icon={Trash2} disabled={disabled} onClick={() => setDeleting(template)} />
+              <IconButton label={m.edit} icon={Edit2} disabled={disabled} onClick={() => setEditing(template)} />
+              <IconButton label={c.delete} icon={Trash2} disabled={disabled} onClick={() => setDeleting(template)} />
             </div>
           </article>
         ))}
@@ -340,14 +348,14 @@ export default function TemplatesEditor() {
         <Sheet
           open
           role="alertdialog"
-          title="삭제 확인"
+          title={m.confirmDelete}
           onClose={() => {
             if (!busy) setDeleting(null);
           }}
           footer={
             <div className="recurring-actions">
               <Button disabled={busy} onClick={() => setDeleting(null)}>
-                취소
+                {c.cancel}
               </Button>
               <Button
                 variant="danger"
@@ -359,12 +367,12 @@ export default function TemplatesEditor() {
                   })
                 }
               >
-                삭제
+                {c.delete}
               </Button>
             </div>
           }
         >
-          <p>이 템플릿을 삭제할까요?</p>
+          <p>{m.deleteTemplate}</p>
         </Sheet>
       )}
     </section>
@@ -380,6 +388,8 @@ function TemplateEditorSheet({
   readonly nextSort: number;
   readonly onClose: () => void;
 }) {
+  const m = useMessages(settingsMessages);
+  const c = useMessages(common);
   const [name, setName] = useState(editing?.name ?? "");
   const [draft, setDraft] = useState(() => payloadDraft(editing?.payload));
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -399,7 +409,9 @@ function TemplateEditorSheet({
     const issues = {
       ...(!payload.success ? payload.errors : {}),
       ...(!input.success
-        ? Object.fromEntries(input.error.issues.map((issue) => [String(issue.path[0]), issue.message]))
+        ? Object.fromEntries(
+            input.error.issues.map((issue) => [String(issue.path[0]), validationMessage(issue.message)]),
+          )
         : {}),
     };
     setErrors(issues);
@@ -412,7 +424,7 @@ function TemplateEditorSheet({
       invalidate(paths.templates);
       onClose();
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : "저장하지 못했어요");
+      setFailure(apiErrorMessage(error, m.saveFailed));
     } finally {
       setBusy(false);
     }
@@ -420,23 +432,23 @@ function TemplateEditorSheet({
   return (
     <Sheet
       open
-      title={editing ? "템플릿 수정" : "템플릿 추가"}
+      title={editing ? m.editTemplate : m.addTemplate}
       onClose={() => {
         if (!busy) onClose();
       }}
       footer={
         <div className="recurring-actions">
           <Button block disabled={busy} onClick={onClose}>
-            취소
+            {c.cancel}
           </Button>
           <Button block variant="primary" disabled={busy || !online} onClick={save}>
-            {busy ? "저장 중..." : "저장"}
+            {busy ? c.saving : c.save}
           </Button>
         </div>
       }
     >
       <div className="recurring-form" ref={formRef}>
-        <Field label="이름" error={errors.name ?? null}>
+        <Field label={m.name} error={errors.name ?? null}>
           {(control) => (
             <Input {...control} value={name} maxLength={40} onChange={(event) => setName(event.currentTarget.value)} />
           )}

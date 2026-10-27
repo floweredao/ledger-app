@@ -1,13 +1,17 @@
 import { Edit2, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { addDays, daysInMonth, formatDisplayDate, kstDate } from "../../../shared/dates";
+import { addDays, daysInMonth, kstDate } from "../../../shared/dates";
 import { FreqSchema, RecurringInputSchema, type RecurringRule } from "../../../shared/schema";
-import { api, type Items, paths } from "../../api/client";
+import { api, apiErrorMessage, type Items, paths } from "../../api/client";
 import { invalidate, useApi, useOnline } from "../../api/hooks";
 import { Button, IconButton } from "../../components/Button";
 import { Field, Input, Select } from "../../components/Field";
 import { Badge } from "../../components/ListRow";
 import { Sheet } from "../../components/Sheet";
+import { messages, useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
+import { formatDisplayDate, formatWon } from "../../i18n/format";
+import { settingsMessages, validationMessage } from "./messages";
 import { PayloadFields, parsePayload, payloadDraft } from "./TemplatesEditor";
 import "./recurring.css";
 
@@ -47,9 +51,16 @@ export function nextOccurrence(rule: RecurringRule): string | null {
   }
 }
 
-const frequencies = { daily: "매일", weekly: "매주", monthly: "매월", yearly: "매년" };
+const frequencies = () => ({
+  daily: messages(settingsMessages).daily,
+  weekly: messages(settingsMessages).weekly,
+  monthly: messages(settingsMessages).monthly,
+  yearly: messages(settingsMessages).yearly,
+});
 
 export default function RecurringEditor() {
+  const m = useMessages(settingsMessages);
+  const c = useMessages(common);
   const { data, error, loading, offline, reload } = useApi<Items<RecurringRule>>(paths.recurring);
   const online = useOnline();
   const [editing, setEditing] = useState<RecurringRule | "new" | null>(null);
@@ -67,7 +78,7 @@ export default function RecurringEditor() {
       await action();
       invalidate(paths.recurring);
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : "변경하지 못했어요");
+      setFailure(apiErrorMessage(error, m.changeFailed));
     } finally {
       setBusy(false);
     }
@@ -75,34 +86,34 @@ export default function RecurringEditor() {
   return (
     <section className="recurring-screen">
       <header className="recurring-header">
-        <h1>반복 거래</h1>
+        <h1>{m.recurring}</h1>
         <div className="recurring-actions">
           <Button
             disabled={disabled}
             onClick={() =>
               mutate(async () => {
                 const result = await api.runRecurring();
-                setNotice(`${result.created}건 반영했어요`);
+                setNotice(m.applied(result.created));
                 invalidate("transactions");
                 invalidate("stats");
                 invalidate("assets");
               })
             }
           >
-            {busy ? "실행 중..." : "지금 반영"}
+            {busy ? m.running : m.runNow}
           </Button>
           <Button icon={Plus} variant="primary" disabled={disabled} onClick={() => setEditing("new")}>
-            추가
+            {c.add}
           </Button>
         </div>
       </header>
-      {loading && !data && <p role="status">로딩 중...</p>}
+      {loading && !data && <p role="status">{m.loading}</p>}
       {Boolean(error) && (
         <div role="alert">
-          오류가 발생했어요 <Button onClick={reload}>다시 시도</Button>
+          {m.error} <Button onClick={reload}>{c.retry}</Button>
         </div>
       )}
-      {(offline || !online) && <p className="recurring-muted">오프라인 상태예요. 캐시된 데이터를 보고 있습니다.</p>}
+      {(offline || !online) && <p className="recurring-muted">{m.offline}</p>}
       {failure && (
         <p role="alert" className="recurring-error">
           {failure}
@@ -111,9 +122,9 @@ export default function RecurringEditor() {
       {notice && <p role="status">{notice}</p>}
       {data && rules.length === 0 && (
         <div className="recurring-empty">
-          <p>반복 규칙이 없어요</p>
+          <p>{m.noRecurring}</p>
           <Button disabled={disabled} onClick={() => setEditing("new")}>
-            첫 번째 규칙 추가
+            {m.firstRule}
           </Button>
         </div>
       )}
@@ -123,20 +134,20 @@ export default function RecurringEditor() {
           return (
             <article className="recurring-row" key={rule.id}>
               <div className="recurring-detail">
-                <strong>{rule.template.merchant || "거래"}</strong>
+                <strong>{rule.template.merchant || m.transaction}</strong>
                 <p className="num">
-                  {(rule.template.amount ?? 0).toLocaleString()}원 · {frequencies[rule.freq]} · {rule.interval}회 간격
+                  {m.recurrence(formatWon(rule.template.amount ?? 0), frequencies()[rule.freq], rule.interval)}
                 </p>
-                <p>다음: {next ? formatDisplayDate(next) : "종료"}</p>
+                <p>{m.nextDate(next ? formatDisplayDate(next) : m.ended)}</p>
                 {rule.template.memo && <p>{rule.template.memo}</p>}
                 <div className="recurring-actions">
-                  {rule.active && next && next <= kstDate() && <Badge tone="warning">반영 대기</Badge>}
-                  {!rule.active && <Badge tone="neutral">비활성</Badge>}
+                  {rule.active && next && next <= kstDate() && <Badge tone="warning">{m.pending}</Badge>}
+                  {!rule.active && <Badge tone="neutral">{m.inactive}</Badge>}
                 </div>
               </div>
               <div className="recurring-actions">
-                <IconButton label="편집" icon={Edit2} disabled={disabled} onClick={() => setEditing(rule)} />
-                <IconButton label="삭제" icon={Trash2} disabled={disabled} onClick={() => setDeleting(rule)} />
+                <IconButton label={m.edit} icon={Edit2} disabled={disabled} onClick={() => setEditing(rule)} />
+                <IconButton label={c.delete} icon={Trash2} disabled={disabled} onClick={() => setDeleting(rule)} />
               </div>
             </article>
           );
@@ -153,14 +164,14 @@ export default function RecurringEditor() {
         <Sheet
           open
           role="alertdialog"
-          title="삭제 확인"
+          title={m.confirmDelete}
           onClose={() => {
             if (!busy) setDeleting(null);
           }}
           footer={
             <div className="recurring-actions">
               <Button disabled={busy} onClick={() => setDeleting(null)}>
-                취소
+                {c.cancel}
               </Button>
               <Button
                 variant="danger"
@@ -172,12 +183,12 @@ export default function RecurringEditor() {
                   })
                 }
               >
-                삭제
+                {c.delete}
               </Button>
             </div>
           }
         >
-          <p>이 반복 규칙을 삭제할까요?</p>
+          <p>{m.deleteRecurring}</p>
         </Sheet>
       )}
     </section>
@@ -191,6 +202,8 @@ function RecurringEditorSheet({
   readonly editing: RecurringRule | null;
   readonly onClose: () => void;
 }) {
+  const m = useMessages(settingsMessages);
+  const c = useMessages(common);
   const [draft, setDraft] = useState(() => payloadDraft(editing?.template));
   const [freq, setFreq] = useState(editing?.freq ?? "monthly");
   const [interval, setInterval] = useState(String(editing?.interval ?? 1));
@@ -221,11 +234,11 @@ function RecurringEditorSheet({
         ? Object.fromEntries(
             input.error.issues.map((issue) => [
               String(issue.path[0]),
-              issue.path[0] === "interval" ? "간격은 1~366의 정수여야 해요" : issue.message,
+              issue.path[0] === "interval" ? m.intervalInvalid : validationMessage(issue.message),
             ]),
           )
         : {}),
-      ...(end && end < start ? { end_date: "종료일은 시작일 이후여야 해요" } : {}),
+      ...(end && end < start ? { end_date: m.endInvalid } : {}),
     };
     setErrors(issues);
     if (!payload.success || !input.success || Object.keys(issues).length > 0) return;
@@ -237,7 +250,7 @@ function RecurringEditorSheet({
       invalidate(paths.recurring);
       onClose();
     } catch (error) {
-      setFailure(error instanceof Error ? error.message : "저장하지 못했어요");
+      setFailure(apiErrorMessage(error, m.saveFailed));
     } finally {
       setBusy(false);
     }
@@ -245,31 +258,31 @@ function RecurringEditorSheet({
   return (
     <Sheet
       open
-      title={editing ? "반복 규칙 수정" : "반복 규칙 추가"}
+      title={editing ? m.editRule : m.addRule}
       onClose={() => {
         if (!busy) onClose();
       }}
       footer={
         <div className="recurring-actions">
           <Button block disabled={busy} onClick={onClose}>
-            취소
+            {c.cancel}
           </Button>
           <Button block variant="primary" disabled={busy || !online} onClick={save}>
-            {busy ? "저장 중..." : "저장"}
+            {busy ? c.saving : c.save}
           </Button>
         </div>
       }
     >
       <div className="recurring-form" ref={formRef}>
         <PayloadFields draft={draft} onChange={setDraft} errors={errors} />
-        <Field label="빈도">
+        <Field label={m.frequency}>
           {(control) => (
             <Select
               {...control}
               value={freq}
               onChange={(event) => setFreq(FreqSchema.parse(event.currentTarget.value))}
             >
-              {Object.entries(frequencies).map(([value, label]) => (
+              {Object.entries(frequencies()).map(([value, label]) => (
                 <option key={value} value={value}>
                   {label}
                 </option>
@@ -277,7 +290,7 @@ function RecurringEditorSheet({
             </Select>
           )}
         </Field>
-        <Field label="간격" error={errors.interval ?? null}>
+        <Field label={m.interval} error={errors.interval ?? null}>
           {(control) => (
             <Input
               {...control}
@@ -290,25 +303,25 @@ function RecurringEditorSheet({
             />
           )}
         </Field>
-        <Field label="시작일" error={errors.start_date ?? null}>
+        <Field label={m.startDate} error={errors.start_date ?? null}>
           {(control) => (
             <Input {...control} type="date" value={start} onChange={(event) => setStart(event.currentTarget.value)} />
           )}
         </Field>
-        <Field label="종료일 (선택)" error={errors.end_date ?? null}>
+        <Field label={m.endDateOptional} error={errors.end_date ?? null}>
           {(control) => (
             <Input {...control} type="date" value={end} onChange={(event) => setEnd(event.currentTarget.value)} />
           )}
         </Field>
-        <Field label="활성">
+        <Field label={m.active}>
           {(control) => (
             <Select
               {...control}
               value={String(active)}
               onChange={(event) => setActive(event.currentTarget.value === "true")}
             >
-              <option value="true">활성</option>
-              <option value="false">비활성</option>
+              <option value="true">{m.active}</option>
+              <option value="false">{m.inactive}</option>
             </Select>
           )}
         </Field>

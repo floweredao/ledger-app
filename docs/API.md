@@ -174,6 +174,14 @@ AssetSummaryRow는 Asset에 다음을 더해요: `balance`, `usage`(카드의 �
 ### `POST /assets/:id/card-payment`
 신용카드 대금을 연결 계좌에서 카드로 가는 이체로 기록해요. 본문 `{amount?, date?}`(`date`는 `YYYY-MM-DD`, 그날 00:00 KST로 기록, 없으면 지금). `amount`가 없으면 그 날짜 기준 `expected_payment`를 써요. 신용카드가 아니거나 연결 계좌가 없거나 낼 금액이 0이면 400 `invalid_card_payment`. 201 `Transaction`(source `card_payment`).
 
+### `POST /assets/:id/balance-adjustment`
+지금 실제 잔액을 받아 장부 잔액과의 차액을 지금 시각의 거래 하나로 기록해요. 본문 `{balance, record_as?, merchant?}`. `balance`는 화면에 보이는 잔액과 같은 부호예요(신용카드 빚은 음수). `record_as`는 `adjustment`(기본)·`expense`·`income`, `merchant`는 거래 제목(기본 `잔액 조정`)이에요. 체크카드는 연결 계좌 잔액을 맞춰요.
+
+- `adjustment`: 한쪽 자산이 빈 이체로 기록해요. 잔액이 늘면 `asset_id: null, to_asset_id: <자산>`, 줄면 `asset_id: <자산>, to_asset_id: null`이에요. 이체라서 잔액에만 반영되고 수입·지출 합계, 통계, 예산에는 들어가지 않아요. `PATCH /transactions/:id`로 고칠 때 빈 쪽은 비운 채, 다른 쪽은 자산이 있는 채로 두면 금액·시각·자산·제목·메모를 바꿀 수 있어요. 빈 쪽을 채우면 일반 이체 규칙(서로 다른 두 자산)을 따라요.
+- `expense`·`income`: 차액을 그 종류의 미분류 거래로 기록해 합계와 통계에 들어가요. 잔액이 줄었을 때만 `expense`, 늘었을 때만 `income`을 쓸 수 있어요.
+
+차액이 0이거나, 방향과 맞지 않는 `record_as`이거나, 잔액 기준일(`opening_date`)이 미래이면 400 `invalid_adjustment`이고 아무것도 기록하지 않아요. 201 `{transaction: Transaction, difference}`(`difference`는 입력 잔액 빼기 장부 잔액).
+
 ## 예산
 
 ### `GET /budgets`
@@ -275,10 +283,10 @@ TemplatePayload는 `{type, amount?, is_refund?, asset_id?, to_asset_id?, categor
 ## 설정
 
 ### `GET /settings`
-응답 `{month_start_day, owner_name, theme, default_asset_id, ledger_view}`. 저장값이 없으면 기본값 `{1, "", "system", null, "daily"}`이에요. `ledger_view`는 가계부를 열 때(`/`로 들어올 때) 처음 보여 줄 탭이에요.
+응답 `{month_start_day, owner_name, theme, default_asset_id, ledger_view, language}`. 저장값이 없으면 기본값 `{1, "", "system", null, "daily", "system"}`이에요. `ledger_view`는 가계부를 열 때(`/`로 들어올 때) 처음 보여 줄 탭이에요. `language`는 화면 언어이고, `system`이면 기기·브라우저 언어를 따라가요.
 
 ### `PATCH /settings`
-위 필드의 일부. `month_start_day`는 1~28, `owner_name`은 40자까지, `theme`은 `system|light|dark`, `ledger_view`는 `daily|calendar|monthly`. 없는 `default_asset_id`는 400 `invalid_input`이에요. 저장은 한 트랜잭션이고, `owner_name`이 바뀌면 같은 트랜잭션 안에서 카카오뱅크 거래를 다시 분류해요(사용자가 잠근 필드는 빼고). 응답은 전체 설정이에요.
+위 필드의 일부. `month_start_day`는 1~28, `owner_name`은 40자까지, `theme`은 `system|light|dark`, `ledger_view`는 `daily|calendar|monthly`, `language`는 `system|ko|en`. 없는 `default_asset_id`는 400 `invalid_input`이에요. 저장은 한 트랜잭션이고, `owner_name`이 바뀌면 같은 트랜잭션 안에서 카카오뱅크 거래를 다시 분류해요(사용자가 잠근 필드는 빼고). 응답은 전체 설정이에요.
 
 ## 동기화(카카오뱅크)
 

@@ -4,8 +4,10 @@ import { TransactionSchema } from "../../shared/schema";
 import { toast } from "../components/Toast";
 import { overlayTransactions } from "../features/offline/overlay";
 import { offlineDatabase, storedRequest } from "../features/offline/storage";
+import { messages } from "../i18n";
 import { readCache, writeCache } from "./cache";
 import { invalidate } from "./invalidate";
+import { apiErrorMessage, apiMessages } from "./messages";
 import { apiJson, isApiError, isNetworkError, isOnline } from "./transport";
 
 export type MutationRequest = {
@@ -99,7 +101,7 @@ export function usePendingCount(): number {
   useEffect(() => {
     ready().catch((error: unknown) => {
       console.warn("outbox hydration failed", error);
-      toast({ message: "동기화 대기 기록을 열지 못했어요" });
+      toast({ message: messages(apiMessages).pendingLoadFailed, tone: "error" });
     });
   }, []);
   return useSyncExternalStore(
@@ -122,7 +124,7 @@ export function flushOutbox(): Promise<void> {
         if (isNetworkError(error)) break;
         if (!isApiError(error)) throw error;
         if (![400, 404, 409, 422].includes(error.status)) break;
-        toast({ message: `동기화하지 못한 기록을 제외했어요: ${error.message || error.code}` });
+        toast({ message: messages(apiMessages).syncRejected(apiErrorMessage(error)), tone: "error" });
       }
       await storedRequest("outbox", "readwrite", (store) => store.delete(head.sequence));
       await refresh();

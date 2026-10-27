@@ -132,6 +132,41 @@ test.each(["2026-03-15", ""])("editor patches only opening_date to %s and preser
   });
 });
 
+test.each([
+  ["130000", null, { balance: 130000, record_as: "adjustment", merchant: "잔액 조정" }],
+  ["70000", "지출", { balance: 70000, record_as: "expense", merchant: "잔액 조정" }],
+  ["120000", "수입", { balance: 120000, record_as: "income", merchant: "잔액 조정" }],
+] as const)("editor turns current balance %s into a difference record (%s)", async (value, choice, expected) => {
+  const posted = Promise.withResolvers<{ url: string; body: unknown }>();
+  let patched = false;
+  mockFetch((url, init) => {
+    if (init.method === "PATCH") patched = true;
+    if (init.method === "POST") {
+      posted.resolve({ url, body: JSON.parse(String(init.body)) });
+      return json({ transaction: {}, difference: 0 }, 201);
+    }
+    return json({ items: [bank, card] });
+  });
+  render(<AssetEditor open id="bank" onClose={() => {}} onSaved={() => {}} />);
+  await screen.findByDisplayValue("테스트은행");
+  expect(screen.queryByLabelText("기존 잔액")).toBeNull();
+  const input = screen.getByLabelText("현재 잔액");
+  expect(input.getAttribute("value")).toBe("100000");
+  expect(screen.queryByRole("radio", { name: "잔액 조정만" })).toBeNull();
+  fireEvent.change(input, { target: { value } });
+  expect(screen.getByText(/^차액 [+-]/)).toBeTruthy();
+  expect((screen.getByRole("radio", { name: "잔액 조정만" }) as HTMLInputElement).checked).toBe(true);
+  expect(screen.queryByRole("radio", { name: choice === "지출" ? "수입" : "지출" })).toBeNull();
+  if (choice) fireEvent.click(screen.getByRole("radio", { name: choice }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    const sent = await posted.promise;
+    expect(sent.url).toContain("assets/bank/balance-adjustment");
+    expect(sent.body).toEqual(expected);
+  });
+  expect(patched).toBe(false);
+});
+
 test("creation includes a native opening date", async () => {
   const saved = Promise.withResolvers<unknown>();
   mockFetch((_url, init) => {

@@ -1,71 +1,79 @@
-<p align="center"><img src="public/icons/icon-192.png" width="96" height="96" alt="가계부 아이콘"></p>
+<p align="center"><img src="public/icons/icon-192.png" width="96" height="96" alt="Ledger app icon"></p>
 
 # ledger-app
 
-혼자 쓰는 한국어 가계부 PWA예요. Mac에 데이터를 보관하고, 같은 Tailscale 네트워크의 폰·태블릿에서 홈 화면 앱처럼 사용해요.
+English | [한국어](README-ko.md)
 
-수입·지출을 빠르게 적고, 내 계좌 사이의 이체는 지출과 구분해요. 잔액 기준일을 지정하면 이미 잔액에 포함된 과거 거래를 다시 더하지 않아요.
+A personal finance ledger PWA for one owner. Your data lives in SQLite on your own Mac, and your phone and tablet on the same Tailscale network use it like a home-screen app.
 
-## 화면
+## Why it's good
 
-아래 화면의 계좌, 거래처, 금액은 모두 합성 데이터예요.
+- **Your data stays on your Mac.** There's no cloud database and no third-party account. The server listens on loopback only, and outside access is limited to your own tailnet.
+- **Balances add up.** Transfers between your own accounts don't count as spending. Transactions before an asset's balance date count as already included in its opening balance, so they aren't added again.
+- **Recording is quick.** You get keypad entry, favorite templates, and recurring transactions. When the connection drops, changes wait in a queue and sync after you reconnect.
+- **Bank history merges safely.** Records come from a read-only module, duplicates are dropped, and your own category and memo edits are never overwritten.
+- **English or Korean follows your system language.** Light and dark themes are included, with layouts for phone, tablet, and desktop.
 
-| 가계부 | 통계 | 자산 |
+## Main features
+
+- Income, expenses, transfers, refunds, categories, memos, tags, search, period filters, and a calendar
+- **Convert to transfer** in the entry editor, which turns an imported income or expense row into a transfer with another asset (for example, money held for someone)
+- Monthly statistics and per-category budgets
+- Bank, cash, savings, and other assets, upcoming credit card payments, and debit cards linked to their account
+- A per-asset opening balance with an optional balance date: earlier transactions count as already included in it
+- Recurring transactions and favorite entry templates
+- CSV/XLSX import with preview and confirm, export, and JSON backup and restore
+- An offline queue that keeps creates, edits, and deletes while disconnected
+- KakaoBank history ingestion through a separate read-only module, with duplicate removal and preservation of manual edits
+
+## Screenshots
+
+Light theme on top, dark theme below. All accounts, merchants, and amounts are synthetic.
+
+| Ledger | Statistics | Assets |
 | --- | --- | --- |
-| <img src="docs/images/ledger.png" width="260" alt="합성 수입과 지출이 표시된 가계부"> | <img src="docs/images/stats.png" width="260" alt="합성 거래의 월별 통계"> | <img src="docs/images/assets.png" width="260" alt="합성 계좌와 저축 자산의 잔액"> |
+| <img src="docs/images/en-ledger-light.png" width="260" alt="Ledger screen in the light theme with synthetic income and expenses"> | <img src="docs/images/en-stats-light.png" width="260" alt="Statistics screen in the light theme with a category donut chart"> | <img src="docs/images/en-assets-light.png" width="260" alt="Assets screen in the light theme with synthetic account, card, and savings balances"> |
+| <img src="docs/images/en-ledger-dark.png" width="260" alt="Ledger screen in the dark theme"> | <img src="docs/images/en-stats-dark.png" width="260" alt="Statistics screen in the dark theme"> | <img src="docs/images/en-assets-dark.png" width="260" alt="Assets screen in the dark theme"> |
 
-## 주요 기능
+## Quick start
 
-- 수입·지출·이체, 환불, 분류·메모·태그, 검색·기간 필터와 달력
-- 은행에서 가져온 수입·지출을 거래 편집 화면의 "이체로 바꾸기"로 다른 자산(예: 맡긴 돈)과의 이체로 한 번에 바꾸기
-- 월별 통계와 분류별 예산
-- 계좌·현금·저축·기타 자산, 신용카드 결제 예정액과 체크카드 연결 계좌
-- 자산별 시작 잔액과 선택 기준일: 기준일 이전 거래는 시작 잔액에 포함된 것으로 계산
-- 반복 거래, 즐겨찾기 입력 템플릿
-- CSV/XLSX 가져오기 미리보기·확정과 내보내기, JSON 백업·복원
-- 연결이 끊겨도 기록·수정·삭제를 보관하는 오프라인 대기열
-- 별도 읽기 전용 모듈을 통한 카카오뱅크 내역 반영, 중복 제거와 수동 수정 보존
-- 밝은·어두운 테마, 폰·태블릿·데스크톱 레이아웃
-
-## 빠른 시작
-
-Bun 1.4.2 이상이 필요해요. 서버는 Bun + Hono + SQLite, 화면은 React + Vite예요.
+You need Bun 1.4.2 or later. The server is Bun + Hono + SQLite and the client is React + Vite.
 
 ```sh
-git clone <이 저장소의 URL>
+git clone <this repository's URL>
 cd ledger-app
 bun install --frozen-lockfile
 bun run build
 bun run start
 ```
 
-`http://127.0.0.1:4340`에서 열어요. 처음 실행하면 `data/credentials.json`이 권한 `0600`으로 만들어져요. 파일을 비공개로 열어 `owner_token`을 로그인 화면에 입력하세요. 토큰을 터미널·로그·채팅에 출력하거나 파일을 공유하지 마세요.
+Open `http://127.0.0.1:4340`. On first run, `data/credentials.json` is created with mode `0600`. Open it privately and enter its `owner_token` on the sign-in screen. Never print the token to a terminal, log, or chat, and never share the file.
 
-설정 예제는 [`.env.example`](.env.example)에 있어요. Bun은 `.env`를 읽어요. 자동 수집 모듈은 이 저장소에 포함하지 않으며, 없으면 수집 상태에 오류가 표시되지만 수동 기록은 사용할 수 있어요.
+See [`.env.example`](.env.example) for configuration; Bun reads `.env`. The ingestion module is not part of this repository. Without it, the sync status shows an error, but manual entry still works.
 
-개발할 때는 두 터미널에서 실행해요.
+For development, run these in two terminals:
 
 ```sh
 bun run start      # API: 127.0.0.1:4340
-bun run dev        # Vite: 127.0.0.1:4341, /api를 서버로 전달
+bun run dev        # Vite: 127.0.0.1:4341, proxies /api to the server
 ```
 
-## 데이터와 접근 범위
+## Data and access
 
-주 데이터는 Mac의 SQLite에 저장해요. 이 앱은 별도 클라우드 데이터베이스를 사용하지 않아요. 오프라인 동작을 위해 접속한 브라우저에도 캐시와 변경 대기열이 남으므로 개인 기기에서 사용하세요.
+The primary data is stored in SQLite on your Mac, and the app uses no cloud database. For offline use, each browser you sign in from also keeps a cache and a pending-change queue, so use it on your own devices.
 
-- 수동 실행: `LEDGER_DATA_DIR`의 `ledger.sqlite`, 자격 증명, 백업
-- Mac 운영 설치: `~/Library/Application Support/ledger-app/data`
-- 운영 설치 시 저장소의 `data`는 운영 디렉터리를 가리키는 링크예요. 설치기는 기존 데이터나 다른 링크를 덮어쓰지 않아요.
-- `data/`, `.env`, 운영 로그, 백업과 실제 거래 화면은 Git에 넣지 않아요.
+- Manual run: `ledger.sqlite`, credentials, and backups in `LEDGER_DATA_DIR`
+- Installed on a Mac: `~/Library/Application Support/ledger-app/data`
+- When installed, the repository's `data` is a link to that runtime directory. The installer never overwrites existing data or a different link.
+- `data/`, `.env`, runtime logs, backups, and screenshots of real transactions stay out of Git.
 
-서버는 루프백 주소에만 바인딩해요. 원격 접속은 Tailscale Serve의 `https:4340`을 사용하며 인터넷 공개용 Funnel은 쓰지 않아요. 쿠키 세션과 변경 요청의 Origin·CSRF 검사가 있어요. 여러 사용자의 데이터를 분리하는 서비스는 아니에요.
+The server binds to loopback addresses only. Remote access goes through Tailscale Serve on `https:4340`; the public Funnel isn't used. Sessions use cookies, and changing requests are checked for Origin and a CSRF token. The app doesn't separate data for multiple users.
 
-## 은행 내역 연결
+## Bank history
 
-은행 로그인·SMS 수신·엑셀 수집 프로그램은 포함하지 않아요. 이미 보유한 내역을 반환하는 신뢰할 수 있는 로컬 모듈을 `LEDGER_MODULE`로 지정해요. 앱은 `entries()`를 호출해 읽을 뿐, 원본 내역을 수정하지 않아요.
+Bank sign-in, SMS capture, and spreadsheet scraping are not included. Point `LEDGER_MODULE` at a trusted local module that returns history you already have. The app only calls `entries()` and never changes the source records.
 
-모듈은 동기 또는 비동기 `entries()`를 내보내며, 다음처럼 레코드 배열을 반환해요. 아래 예시는 합성 데이터예요.
+The module exports a sync or async `entries()` that returns an array of records like the one below (synthetic data):
 
 ```ts
 export function entries() {
@@ -83,38 +91,38 @@ export function entries() {
 }
 ```
 
-정확한 형식은 [`server/importer/source.ts`](server/importer/source.ts)를 참고하세요. 가져온 거래의 수동 수정 필드는 잠겨서 다음 수집이 덮어쓰지 않아요. 같은 수신인에게 보냈다는 이유만으로 모두 같은 용도로 분류하지는 않아요.
+The exact shape is in [`server/importer/source.ts`](server/importer/source.ts). The `kind` values are the Korean labels that bank exports use. Fields you edit by hand on an imported transaction are locked, so the next import won't overwrite them. Payments to the same recipient aren't all classified as the same purpose just because the recipient matches.
 
-## 환경 변수
+## Environment variables
 
-| 이름 | 기본값 | 설명 |
+| Name | Default | Description |
 | --- | --- | --- |
-| `LEDGER_HOST` | `127.0.0.1` | `127.0.0.1`, `localhost`, `::1`만 허용 |
-| `LEDGER_PORT` | `4340` | 서버 포트 |
-| `LEDGER_DATA_DIR` | `./data` | SQLite·자격 증명·백업 위치 |
-| `LEDGER_STATIC_DIR` | `./dist` | 빌드된 화면 위치 |
-| `LEDGER_TAILSCALE_HOST` | 없음 | Serve의 `호스트:포트` |
-| `LEDGER_TAILSCALE_LOGIN` | 없음 | 자동 인증을 허용할 본인 Tailscale 로그인 |
-| `LEDGER_ALLOWED_ORIGINS` | 없음 | 추가 허용 Origin, 쉼표로 구분 |
-| `LEDGER_MODULE` | `~/.local/share/ddolmeng-mode/bin/ledger.ts` | 현재 사용자 홈 기준 읽기 전용 수집 모듈 |
-| `LEDGER_WATCH_DIR` | 모듈 옆 `../state/ledger` | 원본 변경 감시 디렉터리 |
-| `LEDGER_IMPORT_INTERVAL_MS` | `60000` | 자동 수집 주기(ms) |
+| `LEDGER_HOST` | `127.0.0.1` | Only `127.0.0.1`, `localhost`, or `::1` |
+| `LEDGER_PORT` | `4340` | Server port |
+| `LEDGER_DATA_DIR` | `./data` | SQLite, credentials, and backups |
+| `LEDGER_STATIC_DIR` | `./dist` | Built client |
+| `LEDGER_TAILSCALE_HOST` | none | Serve `host:port` |
+| `LEDGER_TAILSCALE_LOGIN` | none | Your own Tailscale login allowed to sign in automatically |
+| `LEDGER_ALLOWED_ORIGINS` | none | Extra allowed origins, comma-separated |
+| `LEDGER_MODULE` | `~/.local/share/ddolmeng-mode/bin/ledger.ts` | Read-only ingestion module, relative to the current user's home |
+| `LEDGER_WATCH_DIR` | `../state/ledger` next to the module | Directory watched for source changes |
+| `LEDGER_IMPORT_INTERVAL_MS` | `60000` | Automatic import interval in ms |
 
-## Mac에서 상시 실행
+## Running it all the time on a Mac
 
-`ops/`는 macOS LaunchAgent와 Tailscale Serve용 운영 도구예요. Bun, Tailscale, 작업 제한용 `heavy` 명령, 기본 위치의 읽기 전용 수집 모듈이 필요해요. `heavy`와 수집 모듈은 이 저장소에 포함하지 않아요. 이 조건이 없는 환경에서는 위 수동 실행을 사용하세요.
+`ops/` holds the macOS LaunchAgent and Tailscale Serve tooling. It needs Bun, Tailscale, the `heavy` job-limit command, and the read-only ingestion module at its default location; neither `heavy` nor the module ships with this repository. Without them, use the manual run above.
 
 ```sh
-bash ops/install.sh --dry-run  # 계획·충돌 확인, 실제 설치 검증은 아님
+bash ops/install.sh --dry-run  # plan and conflict check only, not a real install test
 bash ops/install.sh
 bash ops/update.sh
 ```
 
-런타임은 `~/Library/Application Support/ledger-app`에 두고, 자기 LaunchAgent `local.ledger-app`과 자기 Serve 포트만 관리해요. 설치기가 마지막에 보여 주는 주소를 같은 tailnet의 iPhone Safari에서 연 뒤 **공유 → 홈 화면에 추가**로 설치해요. iPad도 같아요.
+The runtime lives in `~/Library/Application Support/ledger-app`, and the tools manage only their own LaunchAgent `local.ledger-app` and their own Serve port. Open the address the installer prints in iPhone Safari on the same tailnet, then choose **Share → Add to Home Screen**. iPad works the same way.
 
-업데이트 전에 DB와 자격 증명을 비공개로 백업하세요. `ops/update.sh --rollback`은 코드만 되돌려요. DB 스키마가 바뀌었다면 이전 코드와 그에 맞는 데이터 백업을 함께 복원해야 해요. 자세한 설치·백업·복원·제거 절차는 [런타임 문서](docs/runtime.md)에 있어요.
+Back up the database and credentials privately before updating. `ops/update.sh --rollback` restores code only; if the database schema changed, restore the previous code together with a matching data backup. Install, backup, restore, and removal steps are in the [runtime guide](docs/runtime.md) (Korean).
 
-## 검증과 개발 문서
+## Checks and developer docs
 
 ```sh
 bun test
@@ -124,27 +132,25 @@ bun run build
 bun run test:responsive
 ```
 
-이 프로젝트의 운영 Mac에서는 전체 테스트·빌드·반응형 검증을 각각 `heavy bun test`, `heavy bun run build`, `heavy bun run test:responsive`로 실행해요. 동시 작업 한도를 우회하지 않아요.
+On this project's production Mac, run the full test suite, build, and responsive check as `heavy bun test`, `heavy bun run build`, and `heavy bun run test:responsive`. Don't bypass the concurrency limit.
 
-반응형 검증은 Chrome/Chromium과 Bun.WebView를 사용해 합성 DB에서 320·375·390px의 화면·편집 시트·키패드·가로 넘침을 검사하고 자기 리소스를 정리해요. iOS의 날짜·시간 입력 폭은 Chrome에서 재현되지 않아서, Xcode iPhone 시뮬레이터가 있는 Mac에서는 `bun run test:responsive:ios`로 시뮬레이터 Safari의 편집 시트 날짜·시간 칸을 320·375·390px에서 따로 검사해요. 실제 iPhone의 설치 상태바와 네이티브 공유 시트는 데스크톱 검증과 별도로 확인해야 해요.
+The responsive check uses Chrome/Chromium and Bun.WebView on a synthetic database to check screens, the entry sheet, the keypad, and horizontal overflow at 320, 375, and 390px, then cleans up after itself. Chrome doesn't reproduce iOS date and time field widths, so on a Mac with the Xcode iPhone Simulator, `bun run test:responsive:ios` checks those fields in Simulator Safari at the same widths. The installed status bar and native share sheet on a real iPhone still need a separate check.
 
-- [API 계약](docs/API.md)
-- [런타임·복원](docs/runtime.md)
-- [디자인 규칙](DESIGN.md)
-- [개발 작업 규칙](AGENTS.md)
+Developer docs are in Korean:
 
-## 한계
+- [API contract](docs/API.md)
+- [Runtime and restore](docs/runtime.md)
+- [Design rules](DESIGN.md)
+- [Agent working rules](AGENTS.md)
 
-- 개인용 한국어·원화 가계부예요. 금융기관 원장, 다중 통화 회계나 세무 신고 도구가 아니에요.
-- Mac이 꺼져 있거나 네트워크가 끊기면 새 동기화를 할 수 없어요. 오프라인 변경은 다시 연결된 뒤 반영해요.
-- 분류·중복 판단은 보조 기능이에요. 원본 보고 잔액과 앱의 계산 잔액은 별개라 시작 잔액과 이체 목적을 확인해야 해요.
-- 기준일은 한국 시간의 하루 시작이에요. 해당 날짜 이전 거래만 시작 잔액에 포함된 것으로 간주해요.
-- 현재 패키지는 `0.0.1`이며 별도의 릴리스 안정성 보장을 뜻하지 않아요.
+## Limits
 
-## 라이선스
+- This is a personal ledger in Korean won (KRW). It isn't a bank ledger, a multi-currency accounting tool, or a tax filing tool.
+- While the Mac is off or the network is down, nothing new can sync. Offline changes apply after you reconnect.
+- Categorization and duplicate detection are aids. The balance a bank reports and the balance the app calculates are separate, so check opening balances and transfer purposes.
+- A balance date starts at midnight Korea time. Only transactions before that date count as included in the opening balance.
+- The package is at `0.0.1`, which promises no release stability.
 
-[MIT License](LICENSE). 의존성은 각 패키지의 라이선스를 따라요.
+## License
 
-## English
-
-A Korean, single-owner personal-finance PWA built with Bun, Hono, SQLite, React and Vite. The primary database stays on your Mac; browser caches and an offline mutation queue support temporary disconnection. Optional bank ingestion reads a separately supplied local adapter. Remote access is through a private Tailscale network, not a public multi-user service.
+[MIT License](LICENSE). Dependencies follow their own licenses.

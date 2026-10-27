@@ -24,6 +24,8 @@ export const SourceSchema = z.enum([
   "card_payment",
 ]);
 export const ThemeSchema = z.enum(["system", "light", "dark"]);
+/** Screen language: follow the system language, or always Korean or English. */
+export const LanguageSchema = z.enum(["system", "ko", "en"]);
 export const FreqSchema = z.enum(["daily", "weekly", "monthly", "yearly"]);
 /** The ledger tab `/` opens on. */
 export const LedgerViewSchema = z.enum(["daily", "calendar", "monthly"]);
@@ -366,6 +368,7 @@ export const SettingsSchema = z.object({
   theme: ThemeSchema,
   default_asset_id: nullableId,
   ledger_view: LedgerViewSchema,
+  language: LanguageSchema,
 });
 export const SettingsPatchSchema = SettingsSchema.partial().strict();
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -376,6 +379,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: "system",
   default_asset_id: null,
   ledger_view: "daily",
+  language: "system",
 };
 
 export const SessionStateSchema = z.object({

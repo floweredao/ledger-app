@@ -5,6 +5,9 @@ import { Button } from "../../components/Button";
 import { Chip } from "../../components/Chip";
 import { Field, Input, Select } from "../../components/Field";
 import { Sheet } from "../../components/Sheet";
+import { useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
+import { ledgerMessages } from "./messages";
 
 // allow: SIZE_OK — This one scoped component contains every required accessible filter control.
 export type HiddenFilter = "exclude" | "include" | "only";
@@ -43,34 +46,6 @@ type FilterSheetProps = {
   readonly categories: readonly Category[];
   readonly assets: readonly Asset[];
 };
-
-const DATE_PRESETS = [
-  ["today", "오늘"],
-  ["this-month", "이번 달"],
-  ["last-month", "지난 달"],
-] as const;
-
-const TYPE_OPTIONS = [
-  ["", "전체"],
-  ["expense", "지출"],
-  ["income", "수입"],
-  ["transfer", "이체"],
-] as const;
-
-const HIDDEN_OPTIONS = [
-  ["exclude", "제외"],
-  ["include", "포함"],
-  ["only", "숨김만"],
-] as const;
-
-const SOURCE_OPTIONS: readonly { readonly value: Source; readonly label: string }[] = [
-  { value: "manual", label: "직접 입력" },
-  { value: "kakaobank_excel", label: "카카오뱅크 파일" },
-  { value: "kakaobank_sms", label: "카카오뱅크 문자" },
-  { value: "recurring", label: "반복 기록" },
-  { value: "import", label: "가져오기" },
-  { value: "card_payment", label: "카드 대금" },
-];
 
 function FilterInput({
   label,
@@ -120,6 +95,33 @@ export default function FilterSheet({
   categories,
   assets,
 }: FilterSheetProps) {
+  const m = useMessages(ledgerMessages);
+  const c = useMessages(common);
+  const DATE_PRESETS = [
+    ["today", m.today],
+    ["this-month", m.thisMonth],
+    ["last-month", m.lastMonth],
+  ] as const;
+  const TYPE_OPTIONS = [
+    ["", m.all],
+    ["expense", c.expense],
+    ["income", c.income],
+    ["transfer", c.transfer],
+  ] as const;
+  const HIDDEN_OPTIONS = [
+    ["exclude", m.exclude],
+    ["include", m.include],
+    ["only", m.hiddenOnly],
+  ] as const;
+  const SOURCE_OPTIONS: readonly { readonly value: Source; readonly label: string }[] = [
+    { value: "manual", label: m.manual },
+    { value: "kakaobank_excel", label: m.bankFile },
+    { value: "kakaobank_sms", label: m.bankText },
+    { value: "recurring", label: m.recurring },
+    { value: "import", label: m.imported },
+    { value: "card_payment", label: m.cardPayment },
+  ];
+
   const [datePreset, setDatePreset] = useState("");
   const update = (patch: Partial<SearchFilters>) => onChange({ ...filters, ...patch });
   const toggleCategory = (id: string) => {
@@ -132,21 +134,21 @@ export default function FilterSheet({
     <Sheet
       open={open}
       onClose={onClose}
-      title="필터"
+      title={m.filters}
       footer={
         <div className="filter-actions">
           <Button variant="secondary" onClick={() => onChange(EMPTY_FILTERS)}>
-            초기화
+            {m.reset}
           </Button>
           <Button variant="primary" onClick={() => onApply(filters)}>
-            적용
+            {m.apply}
           </Button>
         </div>
       }
     >
       <div className="filter-form">
         <fieldset className="filter-group">
-          <legend className="filter-label">기간</legend>
+          <legend className="filter-label">{m.period}</legend>
           <div className="filter-chip-row">
             {DATE_PRESETS.map(([value, label]) => (
               <Chip
@@ -166,7 +168,7 @@ export default function FilterSheet({
             {(["from", "to"] as const).map((name) => (
               <FilterInput
                 key={name}
-                label={name === "from" ? "시작일" : "종료일"}
+                label={name === "from" ? m.startDate : m.endDate}
                 type="date"
                 value={filters[name]}
                 onChange={(value) => {
@@ -179,7 +181,7 @@ export default function FilterSheet({
         </fieldset>
 
         <fieldset className="filter-group">
-          <legend className="filter-label">거래 유형</legend>
+          <legend className="filter-label">{m.transactionType}</legend>
           <div className="filter-chip-row">
             {TYPE_OPTIONS.map(([value, label]) => (
               <Chip key={value || "all"} selected={filters.type === value} onClick={() => update({ type: value })}>
@@ -190,14 +192,14 @@ export default function FilterSheet({
         </fieldset>
 
         <fieldset className="filter-group">
-          <legend className="filter-label">분류</legend>
+          <legend className="filter-label">{m.category}</legend>
           <label className="filter-option">
             <input
               type="checkbox"
               checked={filters.categoryIds.includes("uncategorized")}
               onChange={() => toggleCategory("uncategorized")}
             />
-            <span>미분류</span>
+            <span>{c.uncategorized}</span>
           </label>
           {categories.length ? (
             <div className="filter-option-list">
@@ -213,18 +215,18 @@ export default function FilterSheet({
               ))}
             </div>
           ) : (
-            <p className="filter-hint">선택할 분류가 없어요</p>
+            <p className="filter-hint">{m.emptyCategories}</p>
           )}
         </fieldset>
 
-        <Field label="자산">
+        <Field label={m.asset}>
           {(control) => (
             <Select
               {...control}
               value={filters.assetId}
               onChange={(event) => update({ assetId: event.currentTarget.value })}
             >
-              <option value="">모든 자산</option>
+              <option value="">{m.allAssets}</option>
               {assets.map((asset) => (
                 <option key={asset.id} value={asset.id}>
                   {asset.name}
@@ -235,12 +237,12 @@ export default function FilterSheet({
         </Field>
 
         <fieldset className="filter-group">
-          <legend className="filter-label">금액</legend>
+          <legend className="filter-label">{m.amount}</legend>
           <div className="filter-amount-fields">
             {(["min", "max"] as const).map((name) => (
               <FilterInput
                 key={name}
-                label={name === "min" ? "최소 금액" : "최대 금액"}
+                label={name === "min" ? m.minAmount : m.maxAmount}
                 type="number"
                 min="0"
                 value={filters[name]}
@@ -255,7 +257,7 @@ export default function FilterSheet({
           ) : null}
         </fieldset>
 
-        <Field label="입력 방식">
+        <Field label={m.entryMethod}>
           {(control) => (
             <Select
               {...control}
@@ -266,7 +268,7 @@ export default function FilterSheet({
                 })
               }
             >
-              <option value="">전체 입력 방식</option>
+              <option value="">{m.allEntryMethods}</option>
               {SOURCE_OPTIONS.map((source) => (
                 <option key={source.value} value={source.value}>
                   {source.label}
@@ -275,10 +277,10 @@ export default function FilterSheet({
             </Select>
           )}
         </Field>
-        <p className="filter-hint">자동 기록 전체 필터는 API에서 지원하지 않아 개별 입력 방식을 선택해 주세요.</p>
+        <p className="filter-hint">{m.entryMethodHint}</p>
 
         <fieldset className="filter-group">
-          <legend className="filter-label">숨김 기록</legend>
+          <legend className="filter-label">{m.hiddenRecords}</legend>
           <div className="filter-chip-row">
             {HIDDEN_OPTIONS.map(([value, label]) => (
               <Chip key={value} selected={filters.hidden === value} onClick={() => update({ hidden: value })}>

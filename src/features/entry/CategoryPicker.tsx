@@ -2,6 +2,8 @@ import { useEffect, useRef } from "react";
 import type { Category } from "../../../shared/schema";
 import { CategoryIcon } from "../../components/CategoryIcon";
 import { Chip } from "../../components/Chip";
+import { useMessages } from "../../i18n";
+import { entryMessages } from "./messages";
 
 type Props = {
   /** Visible categories of the current type, parents and children together. */
@@ -21,6 +23,7 @@ function byRecent(recentIds: readonly string[]) {
 }
 
 export function CategoryPicker({ categories, recentIds, value, onChange }: Props) {
+  const t = useMessages(entryMessages);
   const selected = categories.find((category) => category.id === value);
   const expandedId = selected?.parent_id ?? selected?.id ?? null;
   const parentRecent = recentIds.map((id) => categories.find((c) => c.id === id)?.parent_id ?? id);
@@ -38,7 +41,7 @@ export function CategoryPicker({ categories, recentIds, value, onChange }: Props
 
   return (
     <fieldset className="entry-section entry-fieldset">
-      <legend className="entry-label">분류</legend>
+      <legend className="entry-label">{t.category}</legend>
       <div className="category-grid">
         {parents.map((parent) => (
           <button
@@ -59,7 +62,7 @@ export function CategoryPicker({ categories, recentIds, value, onChange }: Props
       </div>
       {expanded && children.length > 0 ? (
         <fieldset ref={childRowRef} className="category-children entry-fieldset">
-          <legend className="entry-hint">{`${expanded.name} 세부 분류`}</legend>
+          <legend className="entry-hint">{t.subcategories(expanded.name)}</legend>
           <div className="chip-row">
             {children.map((child) => (
               <Chip key={child.id} selected={child.id === value} onClick={() => onChange(child.id)}>

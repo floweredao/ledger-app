@@ -61,6 +61,21 @@ describe("Sheet", () => {
     expect(document.activeElement).toBe(save);
   });
 
+  test("owns every Tab step even when native traversal skips buttons", () => {
+    render(<Harness />);
+    openSheet();
+    const amount = screen.getByLabelText("금액");
+    const save = screen.getByText("저장");
+    const close = screen.getByRole("button", { name: "닫기" });
+    amount.focus();
+    fireEvent.keyDown(amount, { key: "Tab" });
+    expect(document.activeElement).toBe(save);
+    fireEvent.keyDown(save, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(amount);
+    fireEvent.keyDown(amount, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(close);
+  });
+
   test("Escape closes it and focus returns to the opener", async () => {
     let closed = 0;
     render(<Harness onClose={() => closed++} />);

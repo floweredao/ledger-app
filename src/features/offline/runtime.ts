@@ -2,6 +2,8 @@ import { SessionStateSchema } from "../../../shared/schema";
 import { flushOutbox } from "../../api/outbox";
 import { apiJson, isApiError, isNetworkError, setCsrfToken } from "../../api/transport";
 import { toast } from "../../components/Toast";
+import { messages } from "../../i18n";
+import { offlineMessages } from "./messages";
 
 let reconnecting: Promise<void> | undefined;
 export function reconnectOutbox(): Promise<void> {
@@ -23,5 +25,5 @@ export function reconnectOutbox(): Promise<void> {
 
 export function reportSyncFailure(error: unknown): void {
   console.warn("outbox synchronization failed", error);
-  toast({ message: "대기 기록을 동기화하지 못했어요. 다시 시도해 주세요" });
+  toast({ message: messages(offlineMessages).syncFailed, tone: "error" });
 }

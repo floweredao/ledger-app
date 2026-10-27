@@ -243,6 +243,39 @@ describe("export section", () => {
 });
 
 describe("import section", () => {
+  test("explains every KRW state without exposing enum values", async () => {
+    previewResponse = json({
+      ...preview,
+      rows: ["pending", "exact", "inferred"].map((krw_status, index) => ({ ...row, row: index + 2, krw_status })),
+    });
+    await mount();
+    await upload();
+    const text = document.querySelector(".preview-rows")?.textContent ?? "";
+    expect(text).not.toMatch(/pending|exact|inferred/);
+    expect(text).toContain("원화 미확정");
+    expect(text).toContain("원화 확정");
+    expect(text).toContain("원화 추정");
+    expect(text).toContain("금액을 확인");
+  });
+  test("replaces malformed preview structures with a recoverable import alert", async () => {
+    previewResponse = json({ rows: "invalid_type" });
+    await mount();
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("파일 선택"), { target: { files: [new File(["bad"], "sample.csv")] } });
+    });
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).not.toMatch(/invalid_type|expected|path|Zod/);
+    expect(alert.textContent).toMatch(/파일.*확인.*다시/);
+  });
+  test("names the import action with the full selected count and updates it for duplicates", async () => {
+    previewResponse = json({ ...preview, counts: { total: 60, new: 58, duplicate: 2, error: 0 } });
+    await mount();
+    await upload();
+    expect(screen.getByRole("button", { name: "58건 가져오기" })).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("중복도 포함하기"));
+    expect(screen.getByRole("button", { name: "60건 가져오기" })).toBeTruthy();
+    expect(document.querySelector(".data-preview")?.textContent).not.toMatch(/습니다|니다\./);
+  });
   test("previews valid transfers before new asset names have resolved IDs", async () => {
     previewResponse = json({
       ...preview,
@@ -255,7 +288,7 @@ describe("import section", () => {
     await upload();
     expect(screen.getByText("새 테스트계좌 · → 새 테스트지갑 · 식비 · 간식")).toBeTruthy();
     expect(screen.getByText(/이체 · 4,500원/)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "확인" }).hasAttribute("disabled")).toBe(false);
+    expect(screen.getByRole("button", { name: "1건 가져오기" }).hasAttribute("disabled")).toBe(false);
   });
   test("renders the file input and supported extensions", async () => {
     await mount();
@@ -316,15 +349,15 @@ describe("import section", () => {
     });
     await mount();
     await upload();
-    expect(screen.getByText("필수 필드 금액이 없어요")).toBeTruthy();
-    expect(screen.getByText("날짜 형식이 잘못됐어요")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "확인" }).hasAttribute("disabled")).toBe(false);
+    expect(document.querySelectorAll(".error-message")).toHaveLength(2);
+    expect(document.querySelector(".errors-list")?.textContent).toMatch(/확인.*다시/);
+    expect(screen.getByRole("button", { name: "1건 가져오기" }).hasAttribute("disabled")).toBe(false);
   });
   test("commits with preview_id, excludes duplicates and displays skipped rows", async () => {
     await mount();
     await upload();
     const done = changed(() => screen.queryByText("0개 추가됨 · 1개 건너뜀") !== null);
-    await clickButton("확인");
+    await clickButton("0건 가져오기");
     await done;
     expect(JSON.parse(String(request("import/commit").init.body))).toEqual({
       preview_id: previewId,
@@ -337,7 +370,7 @@ describe("import section", () => {
     await upload();
     fireEvent.click(screen.getByLabelText("중복도 포함하기"));
     const done = changed(() => document.querySelector(".data-preview") === null);
-    await clickButton("확인");
+    await clickButton("1건 가져오기");
     await done;
     expect(JSON.parse(String(request("import/commit").init.body)).include_duplicates).toBe(true);
   });
@@ -352,7 +385,7 @@ describe("import section", () => {
     await mount();
     await upload();
     const done = changed(() => screen.queryByText("1개 추가됨 · 0개 건너뜀") !== null);
-    await clickButton("확인");
+    await clickButton("1건 가져오기");
     await done;
     expect(document.querySelector(".data-preview")).toBeNull();
   });
@@ -361,7 +394,7 @@ describe("import section", () => {
     await upload();
     const before = screen.getByLabelText("파일 선택");
     const done = changed(() => document.querySelector(".data-preview") === null);
-    await clickButton("확인");
+    await clickButton("0건 가져오기");
     await done;
     expect(screen.getByLabelText("파일 선택") === before).toBe(false);
     expect(screen.getByLabelText("파일 선택").getAttribute("value") ?? "").toBe("");
@@ -369,12 +402,14 @@ describe("import section", () => {
   test("shows rejected upload errors without a commit control", async () => {
     previewResponse = json({ error: { code: "invalid_csv", message: "Unterminated quoted field" } }, 400);
     await mount();
-    const done = changed(() => screen.queryByText("Unterminated quoted field") !== null);
+    const done = changed(() => screen.queryByRole("alert") !== null);
     await act(async () => {
       fireEvent.change(screen.getByLabelText("파일 선택"), { target: { files: [new File(['"bad'], "sample.csv")] } });
     });
     await done;
-    expect(screen.queryByRole("button", { name: "확인" })).toBeNull();
+    expect(screen.getByRole("alert").textContent).toMatch(/파일.*확인.*다시/);
+    expect(screen.getByRole("alert").textContent).not.toContain("Unterminated");
+    expect(screen.queryByRole("button", { name: /건 가져오기/ })).toBeNull();
   });
 });
 
@@ -423,7 +458,7 @@ describe("backup and restore sections", () => {
     respond = (url, init) =>
       url.endsWith("/backup") ? new Response("{}", { headers: { "Content-Type": "" } }) : original(url, init);
     await mount();
-    const done = changed(() => screen.queryByText(/백업 응답이 JSON 파일이 아니에요/) !== null);
+    const done = changed(() => screen.queryByText(/백업 다운로드 실패/) !== null);
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "백업 다운로드" }));
     });
@@ -490,9 +525,11 @@ describe("backup and restore sections", () => {
     restoreFile();
     confirmRestore();
     const before = screen.getByLabelText("백업 파일");
-    const done = changed(() => screen.queryByText("Invalid backup schema") !== null);
+    const done = changed(() => screen.queryByRole("alert") !== null);
     await clickButton("복원");
     await done;
+    expect(screen.getByRole("alert").textContent).not.toContain("Invalid backup schema");
+    expect(screen.getByRole("alert").textContent).toMatch(/백업 파일.*다시/);
     expect(screen.getByLabelText("백업 파일") === before).toBe(true);
     expect(screen.getByLabelText("복원 확인 텍스트 입력").getAttribute("value")).toBe("복원");
     expect(screen.queryByText("복원 완료")).toBeNull();
@@ -551,17 +588,20 @@ describe("sync section and shared hooks", () => {
   test("reports HTTP sync failures", async () => {
     syncResponse = json({ error: { code: "not_available", message: "Importer not configured" } }, 503);
     await mount();
-    const done = changed(() => screen.queryByText("Importer not configured") !== null);
+    const done = changed(() => screen.queryByRole("alert") !== null);
     await clickButton("지금 동기화");
     await done;
+    expect(screen.getByRole("alert").textContent).not.toContain("Importer not configured");
     expect(screen.queryByText(/^동기화 완료/)).toBeNull();
   });
   test("reports import_failed in an HTTP 200 result without success", async () => {
     syncResponse = json({ inserted: 0, merged: 0, skipped: 0, hidden: 0, errors: ["import_failed"] });
     await mount();
-    const done = changed(() => screen.queryByText("동기화 오류: import_failed") !== null);
+    const done = changed(() => screen.queryByRole("alert") !== null);
     await clickButton("지금 동기화");
     await done;
+    expect(screen.getByRole("alert").textContent).not.toContain("import_failed");
+    expect(screen.getByRole("alert").textContent).toMatch(/동기화.*다시/);
     expect(screen.queryByText(/^동기화 완료/)).toBeNull();
   });
   test("disables manual sync until its response resolves", async () => {

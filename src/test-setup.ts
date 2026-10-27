@@ -19,3 +19,7 @@ const native = {
 };
 GlobalRegistrator.register({ url: "http://127.0.0.1:4341/" });
 Object.assign(globalThis, native);
+
+// Client tests assert the Korean copy; the language must be set after happy-dom provides navigator and document.
+const { setLocale } = await import("./i18n");
+setLocale("ko");

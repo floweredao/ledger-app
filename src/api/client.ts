@@ -36,6 +36,7 @@ import { uuidv7 } from "./ids";
 import { type QueuedMutation, sendMutation } from "./outbox";
 import { apiFetch, apiJson, markLoggedOut, setCsrfToken } from "./transport";
 
+export { apiErrorMessage } from "./messages";
 export { ApiError, isApiError, isNetworkError, NetworkError } from "./transport";
 
 type Param = string | number | boolean | null | undefined;
@@ -151,6 +152,10 @@ export const api = {
   assetsSummary: () => apiJson<AssetSummary>(paths.assetsSummary),
   cardPayment: (id: string, body: { amount?: number; date?: string } = {}) =>
     send<Transaction>("POST", `assets/${enc(id)}/card-payment`, body),
+  adjustBalance: (
+    id: string,
+    body: { balance: number; record_as: "adjustment" | "expense" | "income"; merchant?: string },
+  ) => send<{ transaction: Transaction; difference: number }>("POST", `assets/${enc(id)}/balance-adjustment`, body),
 
   budgets: (month: string) => apiJson<BudgetStatus>(paths.budgets(month)),
   putBudget: (body: { category_id?: string; month?: string; amount: number }) => send<Budget>("PUT", "budgets", body),

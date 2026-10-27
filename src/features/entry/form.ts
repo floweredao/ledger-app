@@ -9,6 +9,9 @@ import {
   type TransactionType,
 } from "../../../shared/schema";
 import type { TransactionCreate } from "../../api/client";
+import { messages } from "../../i18n";
+import { common } from "../../i18n/common";
+import { entryMessages } from "./messages";
 
 export type KeypadKey = "0" | "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" | "00" | "backspace";
 
@@ -31,18 +34,36 @@ export type EntryDraft = {
 export type DraftErrors = { readonly amount?: string; readonly toAsset?: string; readonly when?: string };
 
 export const TYPE_LABEL: Readonly<Record<TransactionType, string>> = {
-  expense: "지출",
-  income: "수입",
-  transfer: "이체",
+  get expense() {
+    return messages(common).expense;
+  },
+  get income() {
+    return messages(common).income;
+  },
+  get transfer() {
+    return messages(common).transfer;
+  },
 };
 
 export const SOURCE_LABEL: Readonly<Record<Source, string>> = {
-  manual: "직접 입력",
-  kakaobank_excel: "카카오뱅크 엑셀",
-  kakaobank_sms: "카카오뱅크 알림",
-  recurring: "반복",
-  import: "가져오기",
-  card_payment: "카드 대금",
+  get manual() {
+    return messages(entryMessages).sourceManual;
+  },
+  get kakaobank_excel() {
+    return messages(entryMessages).sourceExcel;
+  },
+  get kakaobank_sms() {
+    return messages(entryMessages).sourceNotification;
+  },
+  get recurring() {
+    return messages(entryMessages).sourceRecurring;
+  },
+  get import() {
+    return messages(entryMessages).sourceImport;
+  },
+  get card_payment() {
+    return messages(entryMessages).sourceCardPayment;
+  },
 };
 
 const KEYBOARD: Readonly<Record<string, KeypadKey>> = {
@@ -69,16 +90,25 @@ export function pressKey(amount: string, key: KeypadKey): string {
 
 export const amountOf = (draft: EntryDraft): number => (draft.amount === "" ? 0 : Number(draft.amount));
 
-export function validate(draft: EntryDraft, originalAmount?: number): DraftErrors {
+/** A balance adjustment is a transfer with one side empty; editing it keeps that side empty and the other filled. */
+const keepsEmptySide = (draft: EntryDraft, original: Transaction | undefined): boolean =>
+  original !== undefined &&
+  original.type === "transfer" &&
+  (original.asset_id === null) !== (original.to_asset_id === null) &&
+  (draft.assetId === null) === (original.asset_id === null) &&
+  (draft.toAssetId === null) === (original.to_asset_id === null);
+
+export function validate(draft: EntryDraft, original?: Transaction): DraftErrors {
+  const t = messages(entryMessages);
+  const originalAmount = original?.amount;
   const transferOk =
     draft.type !== "transfer" ||
-    (draft.assetId !== null && draft.toAssetId !== null && draft.toAssetId !== draft.assetId);
+    (draft.assetId !== null && draft.toAssetId !== null && draft.toAssetId !== draft.assetId) ||
+    keepsEmptySide(draft, original);
   return {
-    ...(amountOf(draft) > 0 || (originalAmount === 0 && amountOf(draft) === 0)
-      ? {}
-      : { amount: "금액을 입력해 주세요" }),
-    ...(transferOk ? {} : { toAsset: "받는 자산을 보내는 자산과 다르게 골라 주세요" }),
-    ...(draft.date && draft.time ? {} : { when: "날짜와 시간을 골라 주세요" }),
+    ...(amountOf(draft) > 0 || (originalAmount === 0 && amountOf(draft) === 0) ? {} : { amount: t.amountRequired }),
+    ...(transferOk ? {} : { toAsset: t.differentAssets }),
+    ...(draft.date && draft.time ? {} : { when: t.dateTimeRequired }),
   };
 }
 

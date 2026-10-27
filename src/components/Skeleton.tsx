@@ -1,3 +1,6 @@
+import { useMessages } from "../i18n";
+import { componentMessages } from "./ui-messages";
+
 type Props = {
   readonly rows?: number;
   readonly variant?: "rows" | "block";
@@ -6,10 +9,11 @@ type Props = {
 
 const ROW_KEYS = ["r1", "r2", "r3", "r4", "r5", "r6", "r7", "r8"] as const;
 
-export function Skeleton({ rows = 3, variant = "rows", label = "불러오는 중" }: Props) {
+export function Skeleton({ rows = 3, variant = "rows", label }: Props) {
+  const m = useMessages(componentMessages);
   return (
     <div className="skeleton" data-variant={variant} aria-busy="true">
-      <span className="sr-only">{label}</span>
+      <span className="sr-only">{label ?? m.loading}</span>
       {variant === "block" ? (
         <span className="skeleton-block" aria-hidden="true" />
       ) : (

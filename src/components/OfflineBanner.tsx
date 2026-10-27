@@ -1,10 +1,21 @@
 import { WifiOff } from "lucide-react";
+import { usePendingCount } from "../api/outbox";
+import { CacheSavedTime } from "../features/offline/CacheSavedTime";
+import { offlineMessages } from "../features/offline/messages";
+import { useMessages } from "../i18n";
+import { componentMessages } from "./messages";
 
 export function OfflineBanner() {
+  const t = useMessages(componentMessages);
+  const o = useMessages(offlineMessages);
+
+  const count = usePendingCount();
   return (
     <div className="offline-banner" role="status">
       <WifiOff aria-hidden="true" size={16} strokeWidth={2} />
-      <span>오프라인이에요. 마지막으로 저장된 내용을 보여줘요.</span>
+      <span>
+        {t.offline} <CacheSavedTime /> · {o.pending(count)}
+      </span>
     </div>
   );
 }

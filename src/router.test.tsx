@@ -1,7 +1,19 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { kstMonth } from "../shared/dates";
-import { Link, matchRoute, navigate, useRoute, useSelectedMonth, useSelectedYear } from "./router";
+import { Link, matchRoute, navigate, useRoute, useSelectedDate, useSelectedMonth, useSelectedYear } from "./router";
+
+function DateProbe() {
+  const [date, setDate] = useSelectedDate();
+  return (
+    <>
+      <output data-testid="day">{date}</output>
+      <button type="button" onClick={() => setDate("2026-02-17")}>
+        select day
+      </button>
+    </>
+  );
+}
 
 function MonthProbe() {
   const [month, setMonth] = useSelectedMonth();
@@ -38,6 +50,29 @@ function RouteProbe() {
 
 beforeEach(() => history.replaceState(null, "", "/"));
 afterEach(cleanup);
+
+describe("useSelectedDate", () => {
+  test("selected calendar day survives unmount and remount through the URL", () => {
+    history.replaceState(null, "", "/calendar?month=2026-02");
+    const before = history.length;
+    const view = render(<DateProbe />);
+    fireEvent.click(screen.getByText("select day"));
+    expect(new URLSearchParams(location.search).get("day")).toBe("2026-02-17");
+    expect(history.length).toBe(before);
+    view.unmount();
+    render(<DateProbe />);
+    expect(screen.getByTestId("day").textContent).toBe("2026-02-17");
+  });
+
+  test("an invalid or out-of-month URL day falls back to the displayed month's first day", () => {
+    for (const day of ["2026-02-31", "2026-03-17"]) {
+      history.replaceState(null, "", `/calendar?month=2026-02&day=${day}`);
+      const view = render(<DateProbe />);
+      expect(screen.getByTestId("day").textContent).toBe("2026-02-01");
+      view.unmount();
+    }
+  });
+});
 
 describe("useSelectedMonth", () => {
   test("reads ?month from the URL", () => {

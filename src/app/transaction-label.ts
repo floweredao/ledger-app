@@ -1,12 +1,15 @@
 import type { Category, Transaction } from "../../shared/schema";
+import { messages } from "../i18n";
+import { common } from "../i18n/common";
+import { appMessages } from "./messages";
 
 export const TRANSFER_ICON = "arrow-left-right";
 
 /** Row title: merchant first; transfers never carry a category, so they read as "이체" rather than "분류 없음". */
 export function transactionTitle(transaction: Transaction, categoryName: string | undefined): string {
   if (transaction.merchant.trim()) return transaction.merchant;
-  if (transaction.type === "transfer") return "이체";
-  return categoryName ?? "분류 없음";
+  if (transaction.type === "transfer") return messages(common).transfer;
+  return categoryName ?? messages(appMessages).noCategory;
 }
 
 type CategoryLookup = (id: string) => Pick<Category, "name" | "parent_id"> | undefined;

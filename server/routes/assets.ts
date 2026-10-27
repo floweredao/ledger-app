@@ -1,7 +1,16 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { AssetInputSchema, AssetPatchSchema } from "../../shared/schema";
-import { assetSummary, CardPaymentSchema, cardPayment, createAsset, deleteAsset, patchAsset } from "../domain/assets";
+import {
+  adjustBalance,
+  assetSummary,
+  BalanceAdjustmentSchema,
+  CardPaymentSchema,
+  cardPayment,
+  createAsset,
+  deleteAsset,
+  patchAsset,
+} from "../domain/assets";
 import { type AppBindings, readJson } from "../http";
 
 // Zod applies defaults inside optional fields; PATCH must leave omitted fields untouched.
@@ -27,4 +36,7 @@ export const assetsRoutes = new Hono<AppBindings>()
   })
   .post("/assets/:id/card-payment", async (c) =>
     c.json(cardPayment(c.var.db, c.req.param("id"), await readJson(c, CardPaymentSchema)), 201),
+  )
+  .post("/assets/:id/balance-adjustment", async (c) =>
+    c.json(adjustBalance(c.var.db, c.req.param("id"), await readJson(c, BalanceAdjustmentSchema)), 201),
   );

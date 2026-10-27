@@ -4,6 +4,8 @@ import { invalidate } from "../../api/hooks";
 import { Button } from "../../components/Button";
 import { Chip } from "../../components/Chip";
 import { toast } from "../../components/Toast";
+import { useMessages } from "../../i18n";
+import { entryMessages } from "./messages";
 
 type Props = {
   readonly templates: readonly Template[];
@@ -12,19 +14,20 @@ type Props = {
 };
 
 export function FavoritesRow({ templates, onPick, currentAsTemplate }: Props) {
+  const t = useMessages(entryMessages);
   const saveFavorite = async () => {
     try {
       await api.createTemplate(currentAsTemplate());
       invalidate("templates");
-      toast({ message: "즐겨찾기에 저장했어요" });
+      toast({ message: t.favoriteSaved });
     } catch (error) {
       console.warn("template save failed", error);
-      toast({ message: "즐겨찾기를 저장하지 못했어요" });
+      toast({ message: t.favoriteFailed, tone: "error" });
     }
   };
   return (
     <fieldset className="entry-section entry-fieldset">
-      <legend className="entry-label">자주 쓰는 내역</legend>
+      <legend className="entry-label">{t.favorites}</legend>
       <div className="chip-row">
         {templates.map((template) => (
           <Chip key={template.id} onClick={() => onPick(template.payload)}>
@@ -32,7 +35,7 @@ export function FavoritesRow({ templates, onPick, currentAsTemplate }: Props) {
           </Chip>
         ))}
         <Button size="sm" variant="ghost" onClick={() => void saveFavorite()}>
-          즐겨찾기로 저장
+          {t.saveFavorite}
         </Button>
       </div>
     </fieldset>

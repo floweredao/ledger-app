@@ -163,3 +163,17 @@ html [hidden] {
     scroll-behavior: auto;
   }
 }
+
+/* Persistent recovery controls keep room for the full record name. */
+.toast {
+  max-width: min(100%, var(--dialog-max-w));
+}
+
+.toast-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.toast-action {
+  flex-shrink: 0;
+}

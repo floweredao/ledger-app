@@ -306,6 +306,18 @@ describe("CalendarView", () => {
     window.removeEventListener("ledger:open-entry", listener);
   });
 
+  test("keeps the selected day in the URL so a tab round trip restores it", async () => {
+    const first = render(<CalendarView />);
+    fireEvent.click(await screen.findByRole("button", { name: /2026년 10월 5일/ }));
+    expect(new URLSearchParams(location.search).get("day")).toBe("2026-10-05");
+    first.unmount();
+
+    render(<CalendarView />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /2026년 10월 5일/ }).getAttribute("aria-pressed")).toBe("true"),
+    );
+  });
+
   test("an empty month keeps the calendar and shows an empty-day message", async () => {
     calendarDays = [];
     transactions = [];
@@ -326,5 +338,121 @@ describe("CalendarView", () => {
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /2026년 10월 5일/ }).getAttribute("aria-pressed")).toBe("true"),
     );
+  });
+
+  test("keeps compact day totals within a four-glyph budget at >= 12px and keeps full amounts in labels and the day detail", async () => {
+    const budget: readonly (readonly [string, number, string])[] = [
+      ["2026-10-06", 9_994_999, "-999만"],
+      ["2026-10-07", 9_995_000, "-1천만"],
+      ["2026-10-08", 94_999_999, "-9천만"],
+      ["2026-10-09", 95_000_000, "-1억"],
+      ["2026-10-10", 994_999_999, "-9.9억"],
+      ["2026-10-11", 995_000_000, "-10억"],
+      ["2026-10-12", 99_949_999_999, "-999억"],
+      ["2026-10-13", 99_950_000_000, "-1천억"],
+      ["2026-10-14", 950_000_000_000, "-1조"],
+    ];
+    calendarDays = [
+      { date: "2026-10-04", income: 12345678, expense: 99994000, count: 2 },
+      { date: "2026-10-05", income: 0, expense: 123456789, count: 1 },
+      ...budget.map(([date, expense]) => ({ date, income: 0, expense, count: 1 })),
+    ];
+    const base = transactions[0] ?? {};
+    transactions = [
+      { ...base, id: "tx-inc", type: "income", merchant: "샘플급여", amount: 12345678 },
+      { ...base, id: "tx-exp", type: "expense", merchant: "테스트마트", amount: 99994000 },
+    ];
+    render(<CalendarView />);
+
+    const oct4 = await screen.findByRole("button", {
+      name: "2026년 10월 4일 일요일, 수입 +12,345,678원, 지출 -99,994,000원",
+    });
+    const compacts = Array.from(oct4.querySelectorAll(".calendar-compact")).map((el) => el.textContent);
+    expect(compacts).toEqual(["+1천만", "-1억"]);
+
+    const oct5 = await screen.findByRole("button", {
+      name: "2026년 10월 5일 월요일, 지출 -123,456,789원",
+    });
+    expect(oct5.querySelector(".calendar-expense .calendar-compact")?.textContent).toBe("-1.2억");
+    for (const [date, , compact] of budget) {
+      const cell = document.querySelector(`[data-calendar-date="${date}"] .calendar-expense .calendar-compact`);
+      expect(cell?.textContent).toBe(compact);
+    }
+
+    const css = await Bun.file(new URL("./calendar.css", import.meta.url)).text();
+    const compactRule = /\.calendar-compact\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(compactRule).toContain("max(12px,");
+
+    fireEvent.click(oct4);
+    expect(await screen.findByRole("button", { name: /샘플급여.*12,345,678원/ })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /테스트마트.*99,994,000원/ })).toBeTruthy();
+  });
+
+  test("styles out-of-month days without opacity and keeps >= 4.5:1 contrast on light #ffffff and dark #161a21 surfaces", async () => {
+    const tokensCss = await Bun.file(new URL("../../styles/tokens.css", import.meta.url)).text();
+    const calendarCss = await Bun.file(new URL("./calendar.css", import.meta.url)).text();
+
+    const outsideRule = /\.calendar-day\[data-outside-month="true"\]\s*\{([^}]*)\}/.exec(calendarCss)?.[1] ?? "";
+    expect(outsideRule).not.toMatch(/\bopacity\s*:/);
+    expect(outsideRule).toContain("var(--text-outside)");
+    expect(calendarCss).toMatch(
+      /\.calendar-day\[data-outside-month="true"\]\s+\.calendar-day-amount\s*\{[^}]*display:\s*none/,
+    );
+
+    const rootBlock = /:root\s*\{([^}]*)\}/.exec(tokensCss)?.[1] ?? "";
+    const mediaDarkBlock = /:root:not\(\[data-theme="light"\]\)\s*\{([^}]*)\}/.exec(tokensCss)?.[1] ?? "";
+    const attrDarkBlock = /\[data-theme="dark"\]\s*\{([^}]*)\}/.exec(tokensCss)?.[1] ?? "";
+    const normalizeDecls = (block: string) =>
+      block
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .join("\n");
+    expect(normalizeDecls(mediaDarkBlock)).toBe(normalizeDecls(attrDarkBlock));
+
+    // Token values may alias another token (`--text-outside: var(--text-3)`); resolve them like the cascade would.
+    const declarations = (block: string) =>
+      new Map(
+        Array.from(block.matchAll(/(--[\w-]+):\s*([^;]+);/g), (match) => [match[1] ?? "", (match[2] ?? "").trim()]),
+      );
+    const resolveToken = (name: string, scopes: readonly ReadonlyMap<string, string>[]): string => {
+      const value = scopes.map((scope) => scope.get(name)).find((candidate) => candidate !== undefined);
+      if (value === undefined) throw new Error(`${name} is not declared`);
+      const alias = /^var\((--[\w-]+)\)$/.exec(value)?.[1];
+      return alias ? resolveToken(alias, scopes) : value;
+    };
+    const root = declarations(rootBlock);
+    const dark = declarations(attrDarkBlock);
+    const lightOutsideHex = resolveToken("--text-outside", [root]);
+    const darkOutsideHex = resolveToken("--text-outside", [dark, root]);
+    expect(lightOutsideHex).toMatch(/^#[0-9a-f]{6}$/i);
+    expect(darkOutsideHex).toMatch(/^#[0-9a-f]{6}$/i);
+
+    const toLinear = (channel: number) => {
+      const s = channel / 255;
+      return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = (hex: string) => {
+      const value = Number.parseInt(hex.slice(1), 16);
+      const r = (value >> 16) & 255;
+      const g = (value >> 8) & 255;
+      const b = value & 255;
+      return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+    };
+    const contrastRatio = (fg: string, bg: string) => {
+      const l1 = luminance(fg);
+      const l2 = luminance(bg);
+      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    };
+
+    expect(resolveToken("--surface", [root])).toBe("#ffffff");
+    expect(resolveToken("--surface", [dark, root])).toBe("#161a21");
+    expect(contrastRatio(lightOutsideHex, "#ffffff")).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(darkOutsideHex, "#161a21")).toBeGreaterThanOrEqual(4.5);
+    // tokens.css promises every text token clears 4.5:1 on --bg, --surface and --surface-2 in its theme.
+    for (const surface of ["--bg", "--surface-2"]) {
+      expect(contrastRatio(lightOutsideHex, resolveToken(surface, [root]))).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(darkOutsideHex, resolveToken(surface, [dark, root]))).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

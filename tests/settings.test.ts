@@ -43,6 +43,16 @@ describe("Settings", () => {
   });
 
   describe("PATCH /settings", () => {
+    it("should store the screen language and reject unknown languages", async () => {
+      const fetch = await authed(testApp);
+      expect((await (await fetch("/api/v1/settings")).json()).language).toBe("system");
+      const response = await fetch("/api/v1/settings", { method: "PATCH", body: { language: "ko" } });
+      expect(response.status).toBe(200);
+      expect((await (await fetch("/api/v1/settings")).json()).language).toBe("ko");
+      const invalid = await fetch("/api/v1/settings", { method: "PATCH", body: { language: "ja" } });
+      expect(invalid.status).toBe(400);
+    });
+
     it("should update month_start_day", async () => {
       const fetch = await authed(testApp);
       const response = await fetch("/api/v1/settings", {

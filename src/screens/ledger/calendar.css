@@ -16,7 +16,8 @@
 }
 
 .calendar-main {
-  padding: var(--space-2);
+  padding-block: var(--space-2);
+  padding-inline: 0;
 }
 
 .calendar-weekdays,
@@ -49,12 +50,12 @@
 .calendar-day {
   display: flex;
   container-type: inline-size;
-  min-inline-size: var(--hit-min);
+  min-inline-size: min(var(--hit-min), 100%);
   min-block-size: 68px;
   flex-direction: column;
   align-items: center;
   gap: var(--space-1);
-  padding: var(--space-1) 2px;
+  padding: var(--space-1) 0;
   border-radius: var(--radius-input);
   color: var(--text);
   text-align: start;
@@ -75,8 +76,7 @@
 }
 
 .calendar-day[data-outside-month="true"] {
-  color: var(--text-3);
-  opacity: 0.58;
+  color: var(--text-outside);
 }
 
 .calendar-day-number {
@@ -85,6 +85,11 @@
   min-block-size: var(--space-6);
   place-items: center;
   font-size: var(--text-xs);
+  font-weight: var(--weight-medium);
+}
+
+.calendar-day[data-outside-month="true"] .calendar-day-number {
+  font-weight: var(--weight-regular);
 }
 
 .calendar-day[data-today="true"] .calendar-day-number {
@@ -104,6 +109,10 @@
   white-space: normal;
 }
 
+.calendar-day[data-outside-month="true"] .calendar-day-amount {
+  display: none;
+}
+
 .calendar-income {
   color: var(--income);
 }
@@ -113,8 +122,9 @@
 }
 
 .calendar-compact {
-  /* One line in a phone-width day: shrink below 12px only when the amount's estimated width needs it. */
-  font-size: min(var(--text-xs), calc(100cqi / (var(--amount-em, 4) * 1.06)));
+  /* Keep at least 12 CSS px for readability while fitting phone-width day cells on one line. */
+  font-size: max(12px, min(var(--text-xs), calc(100cqi / (var(--amount-em, 4) * 1.06))));
+  letter-spacing: var(--tracking-compact);
   white-space: nowrap;
 }
 
@@ -124,6 +134,11 @@
 
 .calendar-day-panel {
   padding: var(--space-4);
+}
+
+.calendar-day-heading > .btn {
+  max-width: 100%;
+  white-space: normal;
 }
 
 .calendar-day-heading {

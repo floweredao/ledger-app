@@ -13,6 +13,9 @@ import type {
 import { type Items, paths } from "../../api/client";
 import { useApi } from "../../api/hooks";
 import { formatRange, type InclusiveRange } from "../../app/periods";
+import { useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
+import { formatNumber, formatWon } from "../../i18n/format";
 import { navigate } from "../../router";
 import { Button } from "../Button";
 import { EmptyState } from "../EmptyState";
@@ -20,6 +23,7 @@ import { SegmentedControl } from "../SegmentedControl";
 import { Skeleton } from "../Skeleton";
 import { Bars } from "./Bars";
 import { Donut, type DonutRow } from "./Donut";
+import { chartMessages } from "./messages";
 import type { StatsPeriod, StatsType } from "./StatsPeriodPicker";
 
 type Props = {
@@ -30,7 +34,7 @@ type Props = {
 
 const amountText = (amount: number, kind: StatsType) => {
   const signed = kind === "income" ? amount : -amount;
-  return `${signed > 0 ? "+" : signed < 0 ? "−" : ""}${Math.abs(signed).toLocaleString("ko-KR")}원`;
+  return `${signed > 0 ? "+" : signed < 0 ? "−" : ""}${formatWon(Math.abs(signed))}`;
 };
 
 function searchCategory(row: DonutRow, range: InclusiveRange, type: StatsType): void {
@@ -44,6 +48,8 @@ function searchCategory(row: DonutRow, range: InclusiveRange, type: StatsType): 
 }
 
 export function StatsPanels({ period, range, type }: Props) {
+  const m = useMessages(chartMessages);
+  const c = useMessages(common);
   const statsQuery = { ...range, type };
   const summary = useApi<StatsSummary>(paths.statsSummary(statsQuery));
   const categories = useApi<StatsCategories>(paths.statsCategories(statsQuery));
@@ -70,10 +76,10 @@ export function StatsPanels({ period, range, type }: Props) {
       <EmptyState
         tone="error"
         icon={AlertCircle}
-        title="통계를 불러오지 못했어요"
+        title={m.loadFailed}
         action={
           <Button variant="primary" onClick={reload}>
-            다시 시도
+            {c.retry}
           </Button>
         }
       />
@@ -89,10 +95,10 @@ export function StatsPanels({ period, range, type }: Props) {
     assets.data === undefined ||
     states.some((state) => state.loading)
   ) {
-    return <Skeleton rows={4} label="통계를 불러오는 중" />;
+    return <Skeleton rows={4} label={m.loading} />;
   }
   if (summary.data.count === 0) {
-    return <EmptyState title="이 기간에는 기록이 없어요" description="기간을 바꾸거나 기록을 추가해 보세요." />;
+    return <EmptyState title={m.noRecords} description={m.noRecordsHint} />;
   }
 
   const root = drilledId === null ? undefined : categories.data.rows.find((row) => row.category_id === drilledId);
@@ -106,11 +112,11 @@ export function StatsPanels({ period, range, type }: Props) {
 
   return (
     <div className="stats-content">
-      <section className="stats-overview" aria-label={`${type === "expense" ? "지출" : "수입"} 요약`}>
-        <p className="stats-overview-label">{type === "expense" ? "총 지출" : "총 수입"}</p>
+      <section className="stats-overview" aria-label={type === "expense" ? m.expenseSummary : m.incomeSummary}>
+        <p className="stats-overview-label">{type === "expense" ? m.totalExpense : m.totalIncome}</p>
         <p className="stats-overview-total num">{amountText(total, type)}</p>
         <p className="stats-overview-count num">
-          거래 {summary.data.count.toLocaleString("ko-KR")}건 · {formatRange(range)}
+          {m.recordCount(formatNumber(summary.data.count))} · {formatRange(range)}
         </p>
       </section>
       <div className="stats-grid">
@@ -118,15 +124,15 @@ export function StatsPanels({ period, range, type }: Props) {
           <div className="stats-panel-heading">
             {root ? (
               <Button variant="ghost" size="sm" onClick={() => setDrilledId(null)}>
-                ‹ 전체 분류
+                {m.allCategories}
               </Button>
             ) : null}
-            <h2 className="section-title">{root ? `${root.name} 상세` : "분류별"}</h2>
+            <h2 className="section-title">{root ? m.categoryDetail(root.name) : m.byCategory}</h2>
             <SegmentedControl
-              label="거래 종류"
+              label={m.transactionKind}
               options={[
-                { value: "expense", label: "지출" },
-                { value: "income", label: "수입" },
+                { value: "expense", label: c.expense },
+                { value: "income", label: c.income },
               ]}
               value={type}
               onChange={(next) => {
@@ -149,39 +155,39 @@ export function StatsPanels({ period, range, type }: Props) {
         </section>
         <section className="stats-panel">
           <div className="stats-panel-heading">
-            <h2 className="section-title">12개월 추이</h2>
-            <p className="stats-panel-note">막대를 선택하면 금액을 확인할 수 있어요</p>
+            <h2 className="section-title">{m.trend}</h2>
+            <p className="stats-panel-note">{m.barHint}</p>
           </div>
           <Bars buckets={trend.data.buckets} type={type} currentMonth={kstMonth()} />
         </section>
         {type === "expense" ? (
           <section className="stats-panel">
-            <h2 className="section-title">지출 상위 가맹점</h2>
+            <h2 className="section-title">{m.topMerchants}</h2>
             {merchants.data.rows.length ? (
               <ol className="stats-merchant-list">
                 {merchants.data.rows.map((row, index) => (
                   <li className="stats-merchant-row" key={row.merchant_key}>
                     <span className="stats-rank num">{String(index + 1).padStart(2, "0")}</span>
-                    <span className="stats-merchant-name">{row.merchant || "이름 없는 가맹점"}</span>
-                    <span className="stats-merchant-count num">{row.count.toLocaleString("ko-KR")}건</span>
+                    <span className="stats-merchant-name">{row.merchant || m.unnamedMerchant}</span>
+                    <span className="stats-merchant-count num">{m.count(formatNumber(row.count))}</span>
                     <strong className="num">{amountText(row.amount, "expense")}</strong>
                   </li>
                 ))}
               </ol>
             ) : (
-              <p className="stats-muted">가맹점 기록이 없어요</p>
+              <p className="stats-muted">{m.noMerchants}</p>
             )}
           </section>
         ) : null}
         <section className="stats-panel">
-          <h2 className="section-title">자산별 내역</h2>
+          <h2 className="section-title">{m.byAsset}</h2>
           <div className="stats-table-scroll">
             <table className="stats-assets-table">
               <thead>
                 <tr>
-                  <th scope="col">자산</th>
-                  <th scope="col">수입</th>
-                  <th scope="col">지출</th>
+                  <th scope="col">{m.asset}</th>
+                  <th scope="col">{c.income}</th>
+                  <th scope="col">{c.expense}</th>
                 </tr>
               </thead>
               <tbody>
@@ -199,7 +205,7 @@ export function StatsPanels({ period, range, type }: Props) {
       </div>
       {states.some((state) => state.offline) ? (
         <p className="stats-offline" role="status">
-          오프라인에서 저장된 통계를 보여주고 있어요
+          {m.offline}
         </p>
       ) : null}
     </div>

@@ -1,13 +1,44 @@
 import { BookOpen, ChartPie, type LucideIcon, Settings, Wallet } from "lucide-react";
+import { messages } from "../i18n";
+import { common } from "../i18n/common";
 import type { RouteName } from "../router";
+import { componentMessages } from "./messages";
 
 export type Section = "ledger" | "stats" | "assets" | "settings";
 
 export const NAV_ITEMS: readonly { section: Section; to: string; label: string; icon: LucideIcon }[] = [
-  { section: "ledger", to: "/", label: "가계부", icon: BookOpen },
-  { section: "stats", to: "/stats", label: "통계", icon: ChartPie },
-  { section: "assets", to: "/assets", label: "자산", icon: Wallet },
-  { section: "settings", to: "/settings", label: "설정", icon: Settings },
+  {
+    section: "ledger",
+    to: "/",
+    get label() {
+      return messages(common).appName;
+    },
+    icon: BookOpen,
+  },
+  {
+    section: "stats",
+    to: "/stats",
+    get label() {
+      return messages(componentMessages).stats;
+    },
+    icon: ChartPie,
+  },
+  {
+    section: "assets",
+    to: "/assets",
+    get label() {
+      return messages(componentMessages).assets;
+    },
+    icon: Wallet,
+  },
+  {
+    section: "settings",
+    to: "/settings",
+    get label() {
+      return messages(componentMessages).settings;
+    },
+    icon: Settings,
+  },
 ];
 
 export function sectionOf(route: RouteName): Section | null {

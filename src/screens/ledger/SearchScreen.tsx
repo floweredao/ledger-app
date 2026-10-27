@@ -1,6 +1,5 @@
 import { Filter, Search, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { formatSigned, formatWon } from "../../../shared/money";
 import {
   type Asset,
   type Category,
@@ -15,7 +14,7 @@ import { download, paths } from "../../api/client";
 import { useApi } from "../../api/hooks";
 import { isPendingTransaction } from "../../api/outbox";
 import { openEntry } from "../../app/entry-bridge";
-import { rowCategoryLabel, TRANSFER_ICON, transactionTitle, transferRoute } from "../../app/transaction-label";
+import { rowCategoryLabel, TRANSFER_ICON, transferRoute } from "../../app/transaction-label";
 import { AmountText } from "../../components/AmountText";
 import { Button } from "../../components/Button";
 import { CategoryIcon } from "../../components/CategoryIcon";
@@ -25,19 +24,15 @@ import { Field, Input } from "../../components/Field";
 import { Badge, ListRow } from "../../components/ListRow";
 import { Skeleton } from "../../components/Skeleton";
 import { TransactionContinuation } from "../../components/TransactionContinuation";
+import { useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
+import { formatNumber, formatSigned, formatWon } from "../../i18n/format";
 import { navigate, useRoute } from "../../router";
 import FilterSheet, { EMPTY_FILTERS, type SearchFilters } from "./FilterSheet";
+import { ledgerMessages } from "./messages";
 import "./search.css";
 
 // allow: SIZE_OK — The scoped screen file owns the complete search route and its visual result states.
-const SOURCE_LABELS: Readonly<Record<Source, string>> = {
-  manual: "직접 입력",
-  kakaobank_excel: "카카오뱅크 파일",
-  kakaobank_sms: "카카오뱅크 문자",
-  recurring: "반복 기록",
-  import: "가져오기",
-  card_payment: "카드 대금",
-};
 
 function transactionQuery(text: string, filters: SearchFilters) {
   return {
@@ -63,26 +58,45 @@ function TransactionRow({
   readonly categories: readonly Category[];
   readonly assets: readonly Asset[];
 }) {
+  const m = useMessages(ledgerMessages);
+  const c = useMessages(common);
+  const SOURCE_LABELS: Readonly<Record<Source, string>> = {
+    manual: m.manual,
+    kakaobank_excel: m.bankFile,
+    kakaobank_sms: m.bankText,
+    recurring: m.recurring,
+    import: m.imported,
+    card_payment: m.cardPayment,
+  };
+
   const category = categories.find((item) => item.id === transaction.category_id);
   const asset = assets.find((item) => item.id === transaction.asset_id);
   const isAuto = transaction.source !== "manual";
   const foreignAmount =
     transaction.currency !== "KRW" && transaction.foreign_amount !== null
-      ? `${transaction.type === "expense" && !transaction.is_refund ? "-" : transaction.type === "transfer" ? "" : "+"}${transaction.currency} ${transaction.foreign_amount.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}`
+      ? `${transaction.type === "expense" && !transaction.is_refund ? "-" : transaction.type === "transfer" ? "" : "+"}${transaction.currency} ${formatNumber(transaction.foreign_amount, { maximumFractionDigits: 4 })}`
       : null;
   const badges = (
     <>
-      {isPendingTransaction(transaction.id) ? <Badge tone="accent">대기</Badge> : null}
-      {transaction.is_refund ? <Badge tone="accent">환불</Badge> : null}
-      {transaction.hidden ? <Badge>숨김</Badge> : null}
-      {transaction.krw_status === "pending" ? <Badge tone="warning">원화 미확정</Badge> : null}
+      {isPendingTransaction(transaction.id) ? <Badge tone="accent">{m.pending}</Badge> : null}
+      {transaction.is_refund ? <Badge tone="accent">{c.refund}</Badge> : null}
+      {transaction.hidden ? <Badge>{m.hidden}</Badge> : null}
+      {transaction.krw_status === "pending" ? <Badge tone="warning">{m.pendingKrw}</Badge> : null}
       {isAuto ? (
-        <span className="search-source-dot" role="img" aria-label={`자동 기록: ${SOURCE_LABELS[transaction.source]}`} />
+        <span
+          className="search-source-dot"
+          role="img"
+          aria-label={m.automaticRecord(SOURCE_LABELS[transaction.source])}
+        />
       ) : null}
     </>
   );
   const route = transferRoute(transaction, (id) => assets.find((item) => item.id === id)?.name);
-  const title = transactionTitle(transaction, category?.name);
+  const title = transaction.merchant.trim()
+    ? transaction.merchant
+    : transaction.type === "transfer"
+      ? c.transfer
+      : (category?.name ?? m.noCategory);
   const categoryLabel = rowCategoryLabel(
     transaction.category_id,
     (id) => categories.find((item) => item.id === id),
@@ -120,6 +134,17 @@ function TransactionRow({
 }
 
 export default function SearchScreen() {
+  const m = useMessages(ledgerMessages);
+  const c = useMessages(common);
+  const SOURCE_LABELS: Readonly<Record<Source, string>> = {
+    manual: m.manual,
+    kakaobank_excel: m.bankFile,
+    kakaobank_sms: m.bankText,
+    recurring: m.recurring,
+    import: m.imported,
+    card_payment: m.cardPayment,
+  };
+
   const route = useRoute();
   const routeText = route.query.get("q") ?? "";
   const [text, setText] = useState(routeText);
@@ -175,7 +200,7 @@ export default function SearchScreen() {
     try {
       await download(paths.exportFile({ ...query, format }));
     } catch {
-      setExportError("파일을 내보내지 못했어요. 다시 시도해 주세요.");
+      setExportError(m.exportFailed);
     } finally {
       setExporting(false);
     }
@@ -190,33 +215,33 @@ export default function SearchScreen() {
     filters.hidden !== "exclude",
   ].filter(Boolean).length;
   const filterSummary = [
-    filters.from || filters.to ? `${filters.from || "처음"} ~ ${filters.to || "오늘"}` : "",
+    filters.from || filters.to ? `${filters.from || m.beginning} ~ ${filters.to || m.today}` : "",
     filters.type === "income"
-      ? "수입"
+      ? c.income
       : filters.type === "expense"
-        ? "지출"
+        ? c.expense
         : filters.type === "transfer"
-          ? "이체"
+          ? c.transfer
           : "",
     filters.categoryIds
-      .map((id) => (id === "uncategorized" ? "미분류" : categories.find((category) => category.id === id)?.name))
+      .map((id) => (id === "uncategorized" ? c.uncategorized : categories.find((category) => category.id === id)?.name))
       .filter(Boolean)
       .join(", "),
-    filters.assetId ? (assets.find((asset) => asset.id === filters.assetId)?.name ?? "자산") : "",
-    filters.min || filters.max ? `${filters.min || "0"}원 ~ ${filters.max || "제한 없음"}원` : "",
+    filters.assetId ? (assets.find((asset) => asset.id === filters.assetId)?.name ?? m.asset) : "",
+    filters.min || filters.max ? m.amountRange(filters.min, filters.max) : "",
     filters.source ? SOURCE_LABELS[filters.source] : "",
-    filters.hidden === "only" ? "숨김만" : filters.hidden === "include" ? "숨김 포함" : "",
+    filters.hidden === "only" ? m.hiddenOnly : filters.hidden === "include" ? m.includeHidden : "",
   ]
     .filter(Boolean)
     .join(" · ");
 
   const applyFilters = (next: SearchFilters) => {
     if (next.min !== "" && next.max !== "" && Number(next.min) > Number(next.max)) {
-      setFilterError("최소 금액은 최대 금액보다 클 수 없어요");
+      setFilterError(m.invalidAmountRange);
       return;
     }
     if (next.from && next.to && next.from > next.to) {
-      setFilterError("시작일은 종료일보다 늦을 수 없어요");
+      setFilterError(m.invalidDateRange);
       return;
     }
     setFilterError("");
@@ -233,10 +258,10 @@ export default function SearchScreen() {
   return (
     <section className="screen search-screen">
       <header className="screen-header">
-        <h1 className="screen-title">검색</h1>
+        <h1 className="screen-title">{m.search}</h1>
       </header>
       <div className="search-controls">
-        <Field label="검색어">
+        <Field label={m.searchTerm}>
           {(control) => (
             <span className="search-input-wrap">
               <Search aria-hidden="true" size={18} />
@@ -246,10 +271,10 @@ export default function SearchScreen() {
                 role="searchbox"
                 value={text}
                 onChange={(event) => setText(event.currentTarget.value)}
-                placeholder="가맹점이나 메모 검색"
+                placeholder={m.searchPlaceholder}
               />
               {text ? (
-                <button className="search-clear" type="button" aria-label="검색어 지우기" onClick={() => setText("")}>
+                <button className="search-clear" type="button" aria-label={m.clearSearch} onClick={() => setText("")}>
                   <X aria-hidden="true" size={18} />
                 </button>
               ) : null}
@@ -258,57 +283,58 @@ export default function SearchScreen() {
         </Field>
         <Button
           icon={Filter}
-          aria-label={appliedCount ? `필터, ${appliedCount}개 적용` : "필터"}
+          aria-label={appliedCount ? m.appliedFilterCount(appliedCount) : m.filters}
           onClick={() => {
             setDraft(filters);
             setFilterError("");
             setSheetOpen(true);
           }}
         >
-          필터{appliedCount ? ` ${appliedCount}` : ""}
+          {m.filters}
+          {appliedCount ? ` ${formatNumber(appliedCount)}` : ""}
         </Button>
       </div>
 
       {appliedCount ? (
-        <section className="search-filter-chips" aria-label="적용된 필터">
-          <FilterChip removeLabel="필터 모두 해제" onRemove={resetFilters}>
+        <section className="search-filter-chips" aria-label={m.appliedFilters}>
+          <FilterChip removeLabel={m.clearFilters} onRemove={resetFilters}>
             {filterSummary}
           </FilterChip>
         </section>
       ) : null}
 
-      <section className="search-results" aria-label="검색 결과">
+      <section className="search-results" aria-label={m.searchResults}>
         <div className="search-results-heading">
           <div>
-            <h2 className="section-title">거래 내역</h2>
+            <h2 className="section-title">{m.transactions}</h2>
             <p className="search-result-count">
-              {result.data ? `${result.data.totals.count}건` : "검색 중"}
-              {result.offline ? " · 오프라인 저장 자료" : ""}
+              {result.data ? c.count(result.data.totals.count) : m.searching}
+              {result.offline ? m.offlineSuffix : ""}
             </p>
           </div>
-          <nav className="search-exports" aria-label="내보내기" aria-busy={exporting}>
-            <span>내보내기</span>
+          <nav className="search-exports" aria-label={c.export} aria-busy={exporting}>
+            <span>{c.export}</span>
             <a
               href={exportHref("csv")}
-              aria-label="CSV 내보내기"
+              aria-label={m.exportCsv}
               aria-disabled={exporting}
               onClick={(event) => {
                 event.preventDefault();
                 void exportResults("csv");
               }}
             >
-              CSV
+              {m.csv}
             </a>
             <a
               href={exportHref("xlsx")}
-              aria-label="Excel 내보내기"
+              aria-label={m.exportExcel}
               aria-disabled={exporting}
               onClick={(event) => {
                 event.preventDefault();
                 void exportResults("xlsx");
               }}
             >
-              Excel
+              {m.excel}
             </a>
           </nav>
         </div>
@@ -319,21 +345,21 @@ export default function SearchScreen() {
         ) : null}
 
         {result.data ? (
-          <dl className="search-totals" aria-label="검색 합계">
+          <dl className="search-totals" aria-label={m.searchTotals}>
             <div>
-              <dt>수입</dt>
+              <dt>{c.income}</dt>
               <dd className="num" data-kind="income">
                 {formatSigned("income", result.data.totals.income)}
               </dd>
             </div>
             <div>
-              <dt>지출</dt>
+              <dt>{c.expense}</dt>
               <dd className="num" data-kind="expense">
                 {formatSigned("expense", result.data.totals.expense)}
               </dd>
             </div>
             <div>
-              <dt>순합계</dt>
+              <dt>{m.netTotal}</dt>
               <dd className="num">
                 {result.data.totals.net < 0
                   ? `-${formatWon(-result.data.totals.net)}`
@@ -344,25 +370,25 @@ export default function SearchScreen() {
         ) : null}
 
         {result.data === undefined && result.loading ? (
-          <div className="search-skeletons" role="status" aria-label="검색 결과 불러오는 중">
-            <Skeleton variant="rows" />
+          <div className="search-skeletons" role="status" aria-label={m.loadingResults}>
+            <Skeleton variant="rows" label={m.loading} />
           </div>
         ) : result.data === undefined ? (
           <EmptyState
             tone="error"
-            title="검색 결과를 불러오지 못했어요"
+            title={m.loadResultsFailed}
             action={
               <Button size="sm" onClick={result.reload}>
-                다시 시도
+                {c.retry}
               </Button>
             }
           />
         ) : transactions.length === 0 ? (
           <EmptyState
             icon={Search}
-            title="검색 결과가 없어요"
-            description="검색어나 필터를 바꿔 보세요."
-            action={<Button onClick={resetFilters}>필터 초기화</Button>}
+            title={m.emptyResults}
+            description={m.emptyResultsHint}
+            action={<Button onClick={resetFilters}>{m.resetFilters}</Button>}
           />
         ) : (
           <div className="search-result-list">

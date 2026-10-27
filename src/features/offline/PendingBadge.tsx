@@ -2,10 +2,16 @@ import { CloudUpload } from "lucide-react";
 import { useEffect } from "react";
 import { usePendingCount } from "../../api/outbox";
 import { toast } from "../../components/Toast";
+import { messages, useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
+import { CacheSavedTime } from "./CacheSavedTime";
+import { offlineMessages } from "./messages";
 import { reconnectOutbox, reportSyncFailure } from "./runtime";
 import "./offline.css";
 
 export default function PendingBadge() {
+  const t = useMessages(offlineMessages);
+  const c = useMessages(common);
   const count = usePendingCount();
   useEffect(() => {
     if (count === 0) return;
@@ -25,8 +31,8 @@ export default function PendingBadge() {
     const updated = (event: MessageEvent) => {
       if (event.data?.type !== "LEDGER_SW_UPDATED") return;
       toast({
-        message: "새 버전이 준비됐어요",
-        action: { label: "새로고침", onAction: () => window.location.reload() },
+        message: messages(offlineMessages).updateReady,
+        action: { label: messages(offlineMessages).reload, onAction: () => window.location.reload() },
       });
     };
     navigator.serviceWorker.addEventListener("message", updated);
@@ -36,9 +42,10 @@ export default function PendingBadge() {
   return (
     <div className="pending-badge" role="status" aria-live="polite">
       <CloudUpload size={16} aria-hidden="true" />
-      <span>동기화 대기 {count}건</span>
+      <span>{t.pending(count)}</span>
+      <CacheSavedTime />
       <button type="button" onClick={() => void reconnectOutbox().catch(reportSyncFailure)}>
-        지금 동기화
+        {c.syncNow}
       </button>
     </div>
   );

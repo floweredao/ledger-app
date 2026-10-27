@@ -60,6 +60,8 @@ import {
   Wifi,
   Zap,
 } from "lucide-react";
+import { messages } from "../i18n";
+import { componentMessages } from "./messages";
 
 /** Every lucide icon a category may use (seed icons plus the T21 picker set); unknown names fall back. */
 export const CATEGORY_ICONS: Readonly<Record<string, LucideIcon>> = {
@@ -125,6 +127,186 @@ export const CATEGORY_ICONS: Readonly<Record<string, LucideIcon>> = {
 };
 
 export const CATEGORY_ICON_NAMES = Object.keys(CATEGORY_ICONS);
+
+export const CATEGORY_ICON_LABELS: Readonly<Record<string, string>> = {
+  get "arrow-down-left"() {
+    return messages(componentMessages).iconReceive;
+  },
+  get "arrow-left-right"() {
+    return messages(componentMessages).iconTransfer;
+  },
+  get baby() {
+    return messages(componentMessages).iconChildcare;
+  },
+  get "badge-check"() {
+    return messages(componentMessages).iconVerified;
+  },
+  get "badge-percent"() {
+    return messages(componentMessages).iconDiscount;
+  },
+  get banknote() {
+    return messages(componentMessages).iconCash;
+  },
+  get beer() {
+    return messages(componentMessages).iconDrinks;
+  },
+  get bike() {
+    return messages(componentMessages).iconBicycle;
+  },
+  get "book-open"() {
+    return messages(componentMessages).iconReading;
+  },
+  get bot() {
+    return messages(componentMessages).iconAutomation;
+  },
+  get briefcase() {
+    return messages(componentMessages).iconWork;
+  },
+  get "building-2"() {
+    return messages(componentMessages).iconBuilding;
+  },
+  get bus() {
+    return messages(componentMessages).iconBus;
+  },
+  get car() {
+    return messages(componentMessages).iconCar;
+  },
+  get "car-taxi-front"() {
+    return messages(componentMessages).iconTaxi;
+  },
+  get "circle-question-mark"() {
+    return messages(componentMessages).iconHelp;
+  },
+  get "circle-plus"() {
+    return messages(componentMessages).iconAdd;
+  },
+  get clapperboard() {
+    return messages(componentMessages).iconMovies;
+  },
+  get coffee() {
+    return messages(componentMessages).iconCoffee;
+  },
+  get "credit-card"() {
+    return messages(componentMessages).iconCard;
+  },
+  get dog() {
+    return messages(componentMessages).iconPets;
+  },
+  get dumbbell() {
+    return messages(componentMessages).iconExercise;
+  },
+  get ellipsis() {
+    return messages(componentMessages).iconOther;
+  },
+  get fuel() {
+    return messages(componentMessages).iconFuel;
+  },
+  get "gamepad-2"() {
+    return messages(componentMessages).iconGames;
+  },
+  get gift() {
+    return messages(componentMessages).iconGift;
+  },
+  get "graduation-cap"() {
+    return messages(componentMessages).iconEducation;
+  },
+  get "hand-coins"() {
+    return messages(componentMessages).iconAllowance;
+  },
+  get "heart-pulse"() {
+    return messages(componentMessages).iconHealth;
+  },
+  get house() {
+    return messages(componentMessages).iconHousing;
+  },
+  get landmark() {
+    return messages(componentMessages).iconBank;
+  },
+  get monitor() {
+    return messages(componentMessages).iconComputer;
+  },
+  get music() {
+    return messages(componentMessages).iconMusic;
+  },
+  get package() {
+    return messages(componentMessages).iconDelivery;
+  },
+  get percent() {
+    return messages(componentMessages).iconPercentage;
+  },
+  get "piggy-bank"() {
+    return messages(componentMessages).iconSavings;
+  },
+  get pill() {
+    return messages(componentMessages).iconMedicine;
+  },
+  get pizza() {
+    return messages(componentMessages).iconPizza;
+  },
+  get plane() {
+    return messages(componentMessages).iconTravel;
+  },
+  get receipt() {
+    return messages(componentMessages).iconReceipt;
+  },
+  get repeat() {
+    return messages(componentMessages).iconRecurring;
+  },
+  get "rotate-ccw"() {
+    return messages(componentMessages).iconRevert;
+  },
+  get scissors() {
+    return messages(componentMessages).iconBeauty;
+  },
+  get shirt() {
+    return messages(componentMessages).iconClothing;
+  },
+  get "shopping-bag"() {
+    return messages(componentMessages).iconShopping;
+  },
+  get "shopping-cart"() {
+    return messages(componentMessages).iconGroceries;
+  },
+  get smartphone() {
+    return messages(componentMessages).iconPhone;
+  },
+  get stethoscope() {
+    return messages(componentMessages).iconMedicalCare;
+  },
+  get store() {
+    return messages(componentMessages).iconStore;
+  },
+  get tag() {
+    return messages(componentMessages).iconCategory;
+  },
+  get ticket() {
+    return messages(componentMessages).iconPass;
+  },
+  get "train-front"() {
+    return messages(componentMessages).iconTrain;
+  },
+  get "tram-front"() {
+    return messages(componentMessages).iconSubway;
+  },
+  get "undo-2"() {
+    return messages(componentMessages).iconRefund;
+  },
+  get utensils() {
+    return messages(componentMessages).iconMeals;
+  },
+  get "utensils-crossed"() {
+    return messages(componentMessages).iconDiningOut;
+  },
+  get wallet() {
+    return messages(componentMessages).iconWallet;
+  },
+  get wifi() {
+    return messages(componentMessages).iconInternet;
+  },
+  get zap() {
+    return messages(componentMessages).iconElectricity;
+  },
+};
 
 /** `cat-3` -> `var(--cat-3)`; anything else uses the slate slot. */
 export function categoryColor(color: string | null | undefined): string {

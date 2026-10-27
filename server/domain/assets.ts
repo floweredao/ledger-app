@@ -23,6 +23,14 @@ export const CardPaymentSchema = z
   })
   .strict();
 type CardPaymentInput = z.infer<typeof CardPaymentSchema>;
+export const BalanceAdjustmentSchema = z
+  .object({
+    balance: z.number().int().min(-MAX_AMOUNT).max(MAX_AMOUNT),
+    record_as: z.enum(["adjustment", "expense", "income"]).default("adjustment"),
+    merchant: z.string().trim().min(1).max(100).optional(),
+  })
+  .strict();
+type BalanceAdjustmentInput = z.infer<typeof BalanceAdjustmentSchema>;
 type Cycle = { readonly from: string; readonly to: string };
 type Flow = {
   readonly type: "expense" | "income" | "transfer";
@@ -273,6 +281,68 @@ export function assetSummary(db: Database, today = kstDate(), includeHidden = fa
     debts += Math.max(0, -row.balance);
   }
   return { assets: rows, totals: { assets: totalAssets, debts, net_worth: totalAssets - debts } };
+}
+
+/**
+ * Records the gap between the entered current balance and the computed one. An `adjustment` is a one-sided transfer, so
+ * it moves the balance but stays out of income, expense, statistics and budgets; `expense`/`income` book the gap as that type.
+ */
+export function adjustBalance(db: Database, id: string, input: BalanceAdjustmentInput) {
+  return db
+    .transaction(() => {
+      const asset = requireAsset(db, id);
+      const target = asset.kind === "check_card" ? asset.linked_asset_id : asset.id;
+      if (target === null) throw new ApiError(400, "invalid_adjustment", "A check card needs a linked account");
+      const today = kstDate();
+      const cutoff = requireAsset(db, target).opening_date;
+      if (cutoff !== null && cutoff > today) {
+        throw new ApiError(400, "invalid_adjustment", "The balance date is in the future");
+      }
+      const current = assetSummary(db, today, true).assets.find((row) => row.id === target)?.balance ?? 0;
+      const difference = input.balance - current;
+      if (difference === 0) throw new ApiError(400, "invalid_adjustment", "The balance already matches");
+      const flow = difference > 0 ? "income" : "expense";
+      if (input.record_as !== "adjustment" && input.record_as !== flow) {
+        throw new ApiError(
+          400,
+          "invalid_adjustment",
+          `A ${difference > 0 ? "higher" : "lower"} balance cannot be ${input.record_as}`,
+        );
+      }
+      const amount = Math.abs(difference);
+      const merchant = input.merchant ?? "잔액 조정";
+      const occurredAt = nowKst();
+      const transaction =
+        input.record_as === "adjustment"
+          ? insertTransaction(
+              db,
+              {
+                type: "transfer",
+                amount,
+                occurred_at: occurredAt,
+                is_refund: false,
+                currency: "KRW",
+                krw_status: "exact",
+                asset_id: difference < 0 ? target : null,
+                to_asset_id: difference > 0 ? target : null,
+                merchant,
+                memo: "",
+              },
+              { one_sided: true },
+            )
+          : insertTransaction(
+              db,
+              TransactionInputSchema.parse({
+                type: flow,
+                amount,
+                occurred_at: occurredAt,
+                asset_id: asset.kind === "check_card" ? asset.id : target,
+                merchant,
+              }),
+            );
+      return { transaction, difference };
+    })
+    .immediate();
 }
 
 export function cardPayment(db: Database, id: string, input: CardPaymentInput) {
