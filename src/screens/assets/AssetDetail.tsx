@@ -1,7 +1,6 @@
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { formatDisplayDate, kstDate } from "../../../shared/dates";
-import { formatWon } from "../../../shared/money";
+import { kstDate } from "../../../shared/dates";
 import type { AssetSummary, Category, CategoryNode, Transaction, TransactionList } from "../../../shared/schema";
 import { api, isApiError, paths } from "../../api/client";
 import { invalidate, useApi } from "../../api/hooks";
@@ -15,12 +14,18 @@ import { OfflineBanner } from "../../components/OfflineBanner";
 import { Skeleton } from "../../components/Skeleton";
 import { toast } from "../../components/Toast";
 import { TransactionContinuation } from "../../components/TransactionContinuation";
+import { useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
+import { formatDisplayDate, formatNumber, formatWon } from "../../i18n/format";
 import { navigate } from "../../router";
 import { AssetEditor } from "./AssetEditor";
 import { CardStatement } from "./CardStatement";
+import { assetsMessages } from "./messages";
 import "./assets.css";
 
 function AssetTransactions({ items }: { readonly items: readonly Transaction[] }) {
+  const m = useMessages(assetsMessages);
+  const c = useMessages(common);
   const categories = useApi<{ readonly items: readonly CategoryNode[] }>(paths.categories({ include_hidden: true }));
   const categoryMap = new Map<string, Category>(
     (categories.data?.items ?? [])
@@ -43,23 +48,30 @@ function AssetTransactions({ items }: { readonly items: readonly Transaction[] }
           {rows.map((item) => {
             const foreignAmount =
               item.currency !== "KRW" && item.foreign_amount !== null
-                ? `${item.type === "expense" && !item.is_refund ? "-" : item.type === "transfer" ? "" : "+"}${item.currency} ${item.foreign_amount.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}`
+                ? `${item.type === "expense" && !item.is_refund ? "-" : item.type === "transfer" ? "" : "+"}${item.currency} ${formatNumber(item.foreign_amount, { maximumFractionDigits: 4 })}`
                 : null;
-            const title = item.merchant || "이체";
+            const title = item.merchant || c.transfer;
             const categoryLabel = rowCategoryLabel(item.category_id, (id) => categoryMap.get(id), title);
+            // A one-sided transfer is a balance adjustment; say which way it moved, since transfers carry no sign.
+            const adjustment =
+              item.type === "transfer" && (item.asset_id === null || item.to_asset_id === null)
+                ? item.asset_id === null
+                  ? m.adjustmentUp
+                  : m.adjustmentDown
+                : null;
             return (
               <ListRow
                 key={item.id}
                 title={title}
                 subtitle={
-                  [categoryLabel, item.memo, item.krw_status !== "pending" ? foreignAmount : null]
+                  [adjustment, categoryLabel, item.memo, item.krw_status !== "pending" ? foreignAmount : null]
                     .filter(Boolean)
                     .join(" · ") || undefined
                 }
                 badges={
                   <>
-                    {item.is_refund ? <Badge tone="accent">환불</Badge> : null}
-                    {item.krw_status === "pending" ? <Badge tone="warning">원화 미확정</Badge> : null}
+                    {item.is_refund ? <Badge tone="accent">{c.refund}</Badge> : null}
+                    {item.krw_status === "pending" ? <Badge tone="warning">{m.pendingKrw}</Badge> : null}
                   </>
                 }
                 trailing={
@@ -79,6 +91,9 @@ function AssetTransactions({ items }: { readonly items: readonly Transaction[] }
 }
 
 export default function AssetDetail({ id }: { readonly id: string }) {
+  const m = useMessages(assetsMessages);
+  const c = useMessages(common);
+
   const summary = useApi<AssetSummary>(`${paths.assetsSummary}?include_hidden=true`);
   const tx = useApi<TransactionList>(paths.transactions({ asset_id: id }));
   const [editorOpen, setEditorOpen] = useState(false);
@@ -97,11 +112,11 @@ export default function AssetDetail({ id }: { readonly id: string }) {
       if (hide) await api.patchAsset(id, { hidden: true });
       else await api.deleteAsset(id);
       refresh();
-      toast({ message: hide ? "자산을 숨겼어요" : "자산이 삭제되었어요" });
+      toast({ message: hide ? m.assetHidden : m.assetDeleted });
       navigate("/assets", { replace: true });
     } catch (error) {
       if (isApiError(error) && error.code === "in_use") setReferenced(true);
-      else setFailure(error instanceof Error ? error.message : "삭제에 실패했어요");
+      else setFailure(m.deleteFailed);
     } finally {
       setBusy(false);
       setConfirm(null);
@@ -113,9 +128,9 @@ export default function AssetDetail({ id }: { readonly id: string }) {
     try {
       await api.cardPayment(id);
       refresh();
-      toast({ message: "카드 대금을 결제했어요" });
-    } catch (error) {
-      setFailure(error instanceof Error ? error.message : "결제에 실패했어요");
+      toast({ message: m.cardPaid });
+    } catch {
+      setFailure(m.paymentFailed);
     } finally {
       setBusy(false);
       setConfirm(null);
@@ -124,22 +139,22 @@ export default function AssetDetail({ id }: { readonly id: string }) {
   if (!summary.data && summary.error)
     return (
       <div className="screen asset-state" role="alert">
-        <h1 className="screen-title">자산을 불러올 수 없어요</h1>
-        <Button onClick={summary.reload}>다시 시도</Button>
-        <Button onClick={() => navigate("/assets")}>돌아가기</Button>
+        <h1 className="screen-title">{m.loadAssetsFailed}</h1>
+        <Button onClick={summary.reload}>{c.retry}</Button>
+        <Button onClick={() => navigate("/assets")}>{m.back}</Button>
       </div>
     );
   if (!summary.data && summary.loading)
     return (
       <div className="screen">
-        <Skeleton rows={3} />
+        <Skeleton rows={3} label={m.loading} />
       </div>
     );
   if (!asset)
     return (
       <div className="screen asset-state">
-        <h1 className="screen-title">자산을 찾을 수 없어요</h1>
-        <Button onClick={() => navigate("/assets")}>돌아가기</Button>
+        <h1 className="screen-title">{m.assetMissing}</h1>
+        <Button onClick={() => navigate("/assets")}>{m.back}</Button>
       </div>
     );
   const linked = summary.data?.assets.find((item) => item.id === asset.linked_asset_id);
@@ -147,32 +162,39 @@ export default function AssetDetail({ id }: { readonly id: string }) {
   return (
     <div className="screen asset-screen">
       <header className="asset-header">
-        <Button variant="ghost" icon={ArrowLeft} aria-label="자산 목록" onClick={() => navigate("/assets")} />
+        <Button variant="ghost" icon={ArrowLeft} aria-label={m.assetList} onClick={() => navigate("/assets")} />
         <h1 className="screen-title">{asset.name}</h1>
-        <Button onClick={() => setEditorOpen(true)}>편집</Button>
+        <Button onClick={() => setEditorOpen(true)}>{m.editAssetAction}</Button>
       </header>
       {summary.offline && <OfflineBanner />}
       <div className="asset-panel">
-        <p className="asset-meta">현재 잔액{asset.hidden ? " · 숨김" : ""}</p>
+        <p className="asset-meta">
+          {m.currentBalance}
+          {asset.hidden ? m.hiddenSuffix : ""}
+        </p>
         <p className="asset-balance num">{formatWon(asset.balance)}</p>
-        {baseline && <p className="asset-meta">잔액 기준일 · {formatDisplayDate(baseline)} (KST)</p>}
+        {baseline && (
+          <p className="asset-meta">
+            {m.balanceDate} {formatDisplayDate(baseline)} (KST)
+          </p>
+        )}
       </div>
       <CardStatement asset={asset} />
       {asset.kind === "credit_card" && (
         <section className="asset-section asset-panel">
           {linked ? (
             <p>
-              연결 계좌: {linked.name} · <span className="num">{formatWon(linked.balance)}</span>
+              {m.linkedAccountPrefix} {linked.name} · <span className="num">{formatWon(linked.balance)}</span>
             </p>
           ) : (
-            <p className="asset-error">결제할 연결 계좌가 없어요. 편집에서 계좌를 선택해주세요.</p>
+            <p className="asset-error">{m.missingPaymentAccount}</p>
           )}
           <Button
             variant="primary"
             disabled={busy || !linked || (asset.expected_payment ?? 0) <= 0}
             onClick={() => setConfirm("payment")}
           >
-            카드 대금 결제
+            {m.payCard}
           </Button>
         </section>
       )}
@@ -182,16 +204,16 @@ export default function AssetDetail({ id }: { readonly id: string }) {
         </p>
       )}
       <section className="asset-section">
-        <h2 className="asset-section-title">거래 내역</h2>
+        <h2 className="asset-section-title">{m.transactions}</h2>
         {tx.error && !tx.data ? (
           <div role="alert" className="asset-state">
-            <p>거래를 불러올 수 없어요</p>
-            <Button onClick={tx.reload}>다시 시도</Button>
+            <p>{m.loadTransactionsFailed}</p>
+            <Button onClick={tx.reload}>{c.retry}</Button>
           </div>
         ) : !tx.data ? (
-          <Skeleton rows={3} />
+          <Skeleton rows={3} label={m.loading} />
         ) : !tx.data.items.length ? (
-          <p className="asset-state">거래 내역이 없어요</p>
+          <p className="asset-state">{m.emptyTransactions}</p>
         ) : (
           <>
             <AssetTransactions items={tx.data.items} />
@@ -207,20 +229,20 @@ export default function AssetDetail({ id }: { readonly id: string }) {
       </section>
       {referenced && (
         <div className="asset-panel">
-          <p>거래 또는 카드가 참조하는 자산은 삭제할 수 없어요. 대신 숨길까요?</p>
+          <p>{m.assetInUse}</p>
           <Button disabled={busy} onClick={() => void remove(true)}>
-            숨기기
+            {m.hide}
           </Button>
         </div>
       )}
       <Button variant="danger" icon={Trash2} disabled={busy} onClick={() => setConfirm("delete")}>
-        삭제
+        {c.delete}
       </Button>
       <ConfirmDialog
         open={confirm === "delete"}
-        title="자산 삭제"
-        description={`${asset.name}을(를) 삭제할까요?`}
-        confirmLabel="삭제"
+        title={m.deleteAsset}
+        description={m.deleteDescription(asset.name)}
+        confirmLabel={c.delete}
         destructive
         busy={busy}
         onCancel={() => setConfirm(null)}
@@ -228,9 +250,9 @@ export default function AssetDetail({ id }: { readonly id: string }) {
       />
       <ConfirmDialog
         open={confirm === "payment"}
-        title="카드 대금 결제"
-        description={`${linked?.name ?? ""}에서 ${formatWon(asset.expected_payment ?? 0)}을 결제할까요?`}
-        confirmLabel="결제"
+        title={m.payCard}
+        description={m.paymentDescription(linked?.name ?? "", formatWon(asset.expected_payment ?? 0))}
+        confirmLabel={m.pay}
         busy={busy}
         onCancel={() => setConfirm(null)}
         onConfirm={() => void pay()}

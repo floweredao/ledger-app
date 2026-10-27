@@ -1,9 +1,24 @@
-import { beforeEach, expect, test } from "bun:test";
+import { beforeEach, expect, spyOn, test } from "bun:test";
 import "fake-indexeddb/auto";
-import { clearCache, readCache, writeCache } from "./cache";
+import { clearCache, readCache, readCacheSavedAt, writeCache } from "./cache";
 
 beforeEach(async () => {
   await clearCache();
+});
+
+test("server save time is durable and reading offline never advances it", async () => {
+  const savedAt = Date.parse("2026-10-01T01:02:03Z");
+  const clock = spyOn(Date, "now").mockReturnValue(savedAt);
+  try {
+    await writeCache("budgets?month=2026-10", { count: 1 });
+    clock.mockReturnValue(savedAt + 86_400_000);
+    expect(await readCache<unknown>("budgets?month=2026-10")).toEqual({ count: 1 });
+    expect(await readCacheSavedAt()).toBe(savedAt);
+    await clearCache();
+    expect(await readCacheSavedAt()).toBeUndefined();
+  } finally {
+    clock.mockRestore();
+  }
 });
 
 test("cached responses are persisted by URL as isolated structured clones", async () => {

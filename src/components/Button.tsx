@@ -1,6 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 
+export const ICON_STROKE_WIDTH = 2;
+
 type Variant = "primary" | "secondary" | "ghost" | "danger";
 
 export type ButtonProps = ComponentProps<"button"> & {
@@ -23,7 +25,7 @@ export function Button({
   const classes = ["btn", `btn-${variant}`, size === "sm" ? "btn-sm" : "", block ? "btn-block" : "", className ?? ""];
   return (
     <button type={type} className={classes.filter(Boolean).join(" ")} {...rest}>
-      {Icon ? <Icon aria-hidden="true" size={18} strokeWidth={2} /> : null}
+      {Icon ? <Icon aria-hidden="true" size={18} strokeWidth={ICON_STROKE_WIDTH} /> : null}
       {children}
     </button>
   );
@@ -37,7 +39,7 @@ export type IconButtonProps = Omit<ComponentProps<"button">, "children" | "aria-
 export function IconButton({ label, icon: Icon, className, type = "button", ...rest }: IconButtonProps) {
   return (
     <button type={type} aria-label={label} className={["icon-btn", className ?? ""].join(" ").trim()} {...rest}>
-      <Icon aria-hidden="true" size={20} strokeWidth={2} />
+      <Icon aria-hidden="true" size={20} strokeWidth={ICON_STROKE_WIDTH} />
     </button>
   );
 }

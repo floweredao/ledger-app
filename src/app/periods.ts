@@ -1,4 +1,5 @@
-import { addDays, formatDisplayDate, monthRange, type PeriodKind, periodRange } from "../../shared/dates";
+import { addDays, monthRange, type PeriodKind, periodRange } from "../../shared/dates";
+import { formatDisplayDate, formatMonth as localizedMonth } from "../i18n/format";
 
 /** API date filters are inclusive `YYYY-MM-DD` KST dates (AM-4); shared/dates ranges are half-open. */
 export type InclusiveRange = { readonly from: string; readonly to: string };
@@ -28,7 +29,7 @@ export function shiftPeriod(
 }
 
 export function formatMonth(month: string): string {
-  return `${month.slice(0, 4)}년 ${Number(month.slice(5, 7))}월`;
+  return localizedMonth(month);
 }
 
 export function formatRange(range: InclusiveRange): string {

@@ -150,10 +150,30 @@ async function save() {
 }
 
 describe("CategoriesEditor", () => {
+  test("announces the category loading target", () => {
+    loading = true;
+    render(<CategoriesEditor />);
+    expect(screen.getByRole("status", { name: "분류 불러오는 중" })).toBeTruthy();
+  });
+  test("offers Korean icon concepts while saving only internal values", async () => {
+    render(<CategoriesEditor />);
+    await edit();
+    const picker = screen.getByRole("group", { name: "아이콘" });
+    expect(
+      within(picker)
+        .getAllByRole("button")
+        .every((button) => /[가-힣]/.test(button.getAttribute("aria-label") ?? "")),
+    ).toBe(true);
+    expect(picker.innerHTML).not.toContain('aria-label="아이콘 hand-coins"');
+    fireEvent.click(within(picker).getByRole("button", { name: "아이콘 용돈" }));
+    await save();
+    await screen.findByText("분류를 저장했어요");
+    expect(mutations().at(-1)?.body.icon).toBe("hand-coins");
+  });
   test("displays loading state while fetching categories", () => {
     loading = true;
     render(<CategoriesEditor />);
-    expect(screen.getByText("로딩 중...")).toBeTruthy();
+    expect(screen.getByRole("status", { name: "분류 불러오는 중" })).toBeTruthy();
   });
   test("displays actual root and child tree with indentation", async () => {
     render(<CategoriesEditor />);
@@ -173,7 +193,7 @@ describe("CategoriesEditor", () => {
     render(<CategoriesEditor />);
     await edit();
     fireEvent.change(screen.getByLabelText("분류 이름"), { target: { value: "밥값" } });
-    fireEvent.click(screen.getByRole("button", { name: "아이콘 coffee" }));
+    fireEvent.click(screen.getByRole("button", { name: "아이콘 커피" }));
     fireEvent.click(screen.getByRole("button", { name: "색상 8" }));
     await save();
     await screen.findByText("밥값");

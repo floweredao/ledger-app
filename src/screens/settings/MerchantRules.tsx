@@ -1,13 +1,18 @@
 import { Trash2 } from "lucide-react";
 import { useState } from "react";
-import { formatDisplayDate } from "../../../shared/dates";
 import type { MerchantRule } from "../../../shared/schema";
 import { api, paths } from "../../api/client";
 import { invalidate, useApi } from "../../api/hooks";
 import { Button, IconButton } from "../../components/Button";
+import { useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
+import { formatDisplayDate } from "../../i18n/format";
+import { settingsMessages } from "./messages";
 import "./categories.css";
 
 export default function MerchantRules() {
+  const m = useMessages(settingsMessages);
+  const c = useMessages(common);
   const { data, loading, error, offline, reload } = useApi<{ items: MerchantRule[] }>(paths.merchantRules);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState("");
@@ -21,33 +26,33 @@ export default function MerchantRules() {
     try {
       await api.deleteMerchantRule(rule.merchant_key, rule.type);
       invalidate("merchant-rules");
-      setMessage("규칙을 삭제했어요");
+      setMessage(m.ruleDeleted);
     } catch {
-      setErr("삭제에 실패했어요. 다시 시도해 주세요.");
+      setErr(m.deleteFailed);
     } finally {
       setBusy(null);
     }
   }
   return (
     <div className="screen merchant-rules">
-      <h1 className="screen-title">가게별 자동 분류</h1>
-      {offline ? <p role="status">오프라인이에요. 저장된 규칙을 표시해요.</p> : null}
-      {loading && !data ? <p>로딩 중...</p> : null}
+      <h1 className="screen-title">{m.rules}</h1>
+      {offline ? <p role="status">{m.rulesOffline}</p> : null}
+      {loading && !data ? <p>{m.loading}</p> : null}
       {error ? (
         <div role="alert">
-          <p>서버 오류가 발생했어요</p>
-          <Button onClick={reload}>다시 시도</Button>
+          <p>{m.serverError}</p>
+          <Button onClick={reload}>{c.retry}</Button>
         </div>
       ) : null}
       {!loading && !error && rules.length === 0 ? (
         <div className="empty-state">
-          <p>저장된 규칙이 없어요</p>
-          <p>거래에서 분류를 직접 지정하면 자동으로 규칙이 만들어집니다.</p>
+          <p>{m.noRules}</p>
+          <p>{m.rulesHint}</p>
         </div>
       ) : null}
       <ul className="rules-list" aria-busy={busy !== null}>
         {rules.map((rule) => {
-          const typeName = rule.type === "income" ? "수입" : rule.type === "expense" ? "지출" : "이체";
+          const typeName = rule.type === "income" ? c.income : rule.type === "expense" ? c.expense : c.transfer;
           return (
             <li key={`${rule.merchant_key}:${rule.type}`} className="rule-item">
               <div className="rule-info">
@@ -60,7 +65,7 @@ export default function MerchantRules() {
                 icon={Trash2}
                 className="category-error"
                 disabled={busy !== null}
-                label={`${rule.merchant_key} ${typeName} 규칙 삭제`}
+                label={m.deleteRuleLabel(rule.merchant_key, typeName)}
                 onClick={() => void remove(rule)}
               />
             </li>

@@ -1,8 +1,9 @@
-import { formatSigned, formatWon } from "../../shared/money";
 import type { TransactionType } from "../../shared/schema";
+import { useMessages } from "../i18n";
+import { common } from "../i18n/common";
+import { formatSigned, formatWon } from "../i18n/format";
 
 type Kind = "expense" | "income" | "refund" | "transfer";
-const LABEL: Record<Kind, string> = { expense: "지출", income: "수입", refund: "환불", transfer: "이체" };
 
 type Props = {
   readonly type: TransactionType;
@@ -13,12 +14,13 @@ type Props = {
 };
 
 export function AmountText({ type, amount, isRefund = false, size = "md", className }: Props) {
+  const c = useMessages(common);
   const kind: Kind = type === "expense" && isRefund ? "refund" : type;
   return (
     <span className={["amount", "num", `amount-${size}`, className ?? ""].join(" ").trim()} data-kind={kind}>
       <span aria-hidden="true">{formatSigned(type, amount, isRefund)}</span>
       <span className="sr-only">
-        {LABEL[kind]} {formatWon(amount)}
+        {c[kind]} {formatWon(amount)}
       </span>
     </span>
   );

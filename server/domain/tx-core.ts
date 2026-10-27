@@ -24,6 +24,8 @@ export type InsertOptions = {
   readonly hidden_reason?: string | null;
   readonly recurring_rule_id?: string | null;
   readonly now?: string;
+  /** Balance adjustments are transfers with one side empty: money that appeared or vanished, not moved between assets. */
+  readonly one_sided?: boolean;
 };
 export type EditableField = Exclude<keyof TransactionPatch, "learn" | "apply_to_past">;
 export type PatchResult = { readonly transaction: Transaction; readonly changed: readonly EditableField[] };
@@ -111,7 +113,7 @@ export function insertTransaction(db: Database, input: TransactionInput, options
   }
   const assetId = input.asset_id === undefined ? defaultAssetId(db) : input.asset_id;
   const toAssetId = input.to_asset_id ?? null;
-  assertTransfer(input.type, assetId, toAssetId);
+  if (!options.one_sided) assertTransfer(input.type, assetId, toAssetId);
   const now = options.now ?? nowKst();
   db.query(
     `INSERT INTO transactions(id,type,occurred_at,amount,is_refund,currency,foreign_amount,krw_status,asset_id,to_asset_id,
@@ -156,7 +158,12 @@ export function patchTransaction(db: Database, id: string, patch: TransactionPat
   const changed = EDITABLE_FIELDS.filter((field) => fields[field] !== undefined && fields[field] !== current[field]);
   if (changed.length === 0) return { transaction: current, changed };
   const next = { ...current, ...Object.fromEntries(changed.map((field) => [field, fields[field]])) };
-  assertTransfer(next.type, next.asset_id, next.to_asset_id);
+  // A balance adjustment stays editable as long as the side it left empty stays empty and the other keeps an asset.
+  const oneSided = (row: Transaction) =>
+    row.type === "transfer" && (row.asset_id === null) !== (row.to_asset_id === null);
+  const keepsEmptySide =
+    oneSided(current) && oneSided(next) && (next.asset_id === null) === (current.asset_id === null);
+  if (!keepsEmptySide) assertTransfer(next.type, next.asset_id, next.to_asset_id);
   const columns: [string, Bindable][] = changed.map((field) => [field, toColumn(next[field])]);
   if (changed.includes("merchant")) columns.push(["merchant_key", merchantKey(next.merchant)]);
   const locked = [...new Set([...current.user_locked, ...changed])];

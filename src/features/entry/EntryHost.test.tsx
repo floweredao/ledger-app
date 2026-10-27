@@ -1,9 +1,9 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, jest, test } from "bun:test";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { clearMemoryCache } from "../../api/hooks";
 import { markNetwork, setCsrfToken } from "../../api/transport";
 import { openEntry } from "../../app/entry-bridge";
-import { ToastRegion } from "../../components/Toast";
+import { dismissToast, ToastRegion, toast } from "../../components/Toast";
 import EntryHost from "./EntryHost";
 import { GETS, listOf, row } from "./test-fixtures";
 
@@ -13,6 +13,7 @@ const realFetch = globalThis.fetch;
 let calls: Call[] = [];
 let reads: Map<string, ReturnType<typeof Promise.withResolvers<void>>>;
 let mutation: ReturnType<typeof Promise.withResolvers<void>>;
+let heldSave: ReturnType<typeof Promise.withResolvers<Response>> | undefined;
 const baseCategories = GETS.categories;
 
 type Node = { readonly hidden: boolean; readonly children: readonly { readonly hidden: boolean }[] };
@@ -30,6 +31,7 @@ beforeEach(() => {
   calls = [];
   reads = new Map();
   mutation = Promise.withResolvers<void>();
+  heldSave = undefined;
   GETS.transactions = listOf(row);
   GETS["transactions/tx1"] = row;
   GETS.categories = baseCategories;
@@ -57,6 +59,7 @@ beforeEach(() => {
       return response;
     }
     mutation.resolve();
+    if (heldSave && method === "POST" && path === "transactions") return heldSave.promise;
     return new Response(JSON.stringify(row), { status: method === "POST" ? 201 : 200 });
   }) as typeof fetch;
 });
@@ -90,6 +93,32 @@ async function open(request: Parameters<typeof openEntry>[0] = {}, ready = "식�
 }
 
 describe("new entry", () => {
+  test("pending save is busy and disabled, rejects duplicates, and keeps the draft after failure", async () => {
+    await open();
+    press("5", "0");
+    fireEvent.change(screen.getByLabelText("내용"), { target: { value: "샘플카페" } });
+    heldSave = Promise.withResolvers<Response>();
+    const save = screen.getByRole("button", { name: "저장" });
+    fireEvent.click(save);
+    try {
+      expect(save.textContent).toBe("저장 중...");
+      expect(save.getAttribute("aria-busy")).toBe("true");
+      expect(save.hasAttribute("disabled")).toBe(true);
+      await act(async () => mutation.promise);
+      fireEvent.click(save);
+      fireEvent.keyDown(screen.getByRole("dialog"), { key: "Enter" });
+      expect(mutations()).toHaveLength(1);
+    } finally {
+      await act(async () => {
+        heldSave?.resolve(new Response(JSON.stringify({ error: { code: "internal", message: "" } }), { status: 500 }));
+      });
+    }
+    expect(screen.getByRole("button", { name: "저장" }).hasAttribute("disabled")).toBe(false);
+    expect(save.getAttribute("aria-busy")).toBe("false");
+    expect(amountText()).toBe("50원");
+    expect(screen.getByLabelText("내용").getAttribute("value")).toBe("샘플카페");
+  });
+
   test("reopening a cached form keeps focus inside for immediate keyboard entry", async () => {
     await open();
     fireEvent.click(screen.getByRole("button", { name: "닫기" }));
@@ -355,6 +384,26 @@ describe("edit entry", () => {
     expect(mutations()[0]?.body).toEqual({ amount: 1200 });
   });
 
+  test("a balance adjustment with one empty side saves an edited amount", async () => {
+    GETS["transactions/adj"] = {
+      ...row,
+      id: "adj",
+      type: "transfer",
+      category_id: null,
+      asset_id: null,
+      to_asset_id: "a-bank",
+      merchant: "잔액 조정",
+      source: "manual",
+    };
+    await open({ id: "adj" }, "삭제");
+    await waitFor(() => expect(amountText()).toBe("12,000원"));
+    press("지우기");
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(mutations()).toHaveLength(1));
+    expect(screen.queryByText("받는 자산을 보내는 자산과 다르게 골라 주세요")).toBeNull();
+    expect(mutations()[0]).toMatchObject({ method: "PATCH", url: "/api/v1/transactions/adj", body: { amount: 1200 } });
+  });
+
   test("changing the category offers apply-to-past and sends it", async () => {
     await open({ id: "tx1" });
     await waitFor(() => expect(amountText()).toBe("12,000원"));
@@ -401,10 +450,73 @@ describe("edit entry", () => {
     fireEvent.click(screen.getByRole("button", { name: "삭제" }));
     await waitFor(() => expect(mutations()).toHaveLength(1));
     expect(mutations()[0]).toMatchObject({ method: "DELETE", url: "/api/v1/transactions/tx1" });
-    expect(await screen.findByText("삭제했어요")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "실행 취소" }));
+    expect(await screen.findByText("테스트마트 기록을 삭제했어요")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "테스트마트 삭제 실행 취소" }));
     await waitFor(() => expect(mutations()).toHaveLength(2));
     expect(mutations()[1]).toMatchObject({ method: "POST", url: "/api/v1/transactions/tx1/restore" });
+  });
+
+  test("named undo survives the old timeout and later notifications until explicitly dismissed", async () => {
+    await open({ id: "tx1" });
+    fireEvent.click(screen.getByRole("button", { name: "삭제" }));
+    await screen.findByRole("button", { name: "테스트마트 삭제 실행 취소" });
+    // Remount the same external-store notice with its timer owned by the fake clock.
+    cleanup();
+    jest.useFakeTimers();
+    const notifications: number[] = [];
+    try {
+      render(<ToastRegion />);
+      act(() => jest.advanceTimersByTime(6001));
+      const undo = screen.getByRole("button", { name: "테스트마트 삭제 실행 취소" });
+      act(() => {
+        for (let i = 0; i < 4; i++) notifications.push(toast({ message: "테스트 알림" }));
+      });
+      expect(undo.isConnected).toBe(true);
+      expect(screen.getByRole("button", { name: "테스트마트 기록을 삭제했어요 알림 닫기" })).toBeTruthy();
+      undo.focus();
+      expect(document.activeElement).toBe(undo);
+      jest.useRealTimers();
+      mutation = Promise.withResolvers<void>();
+      await act(async () => {
+        fireEvent.click(undo);
+        await mutation.promise;
+      });
+      expect(mutations().map(({ method, url }) => ({ method, url }))).toEqual([
+        { method: "DELETE", url: "/api/v1/transactions/tx1" },
+        { method: "POST", url: "/api/v1/transactions/tx1/restore" },
+      ]);
+    } finally {
+      jest.useRealTimers();
+      act(() => {
+        for (const id of notifications) dismissToast(id);
+        for (const button of screen.queryAllByRole("button", { name: /알림 닫기$/ })) fireEvent.click(button);
+      });
+    }
+  });
+
+  test("discard exposes one modal, traps both Tab directions, and returns to the edited field", async () => {
+    await open({ id: "tx1" });
+    const merchant = screen.getByLabelText("내용");
+    fireEvent.change(merchant, { target: { value: "샘플카페" } });
+    act(() => merchant.focus());
+    fireEvent.click(screen.getByRole("button", { name: "닫기" }));
+    expect(screen.queryAllByRole("dialog")).toHaveLength(0);
+    const confirm = screen.getByRole("alertdialog");
+    expect(document.querySelectorAll('[aria-modal="true"]')).toHaveLength(1);
+    expect(document.querySelector(".entry-form")?.closest("[inert][aria-hidden=true]")).toBeTruthy();
+    const cancel = within(confirm).getByRole("button", { name: "계속 작성" });
+    const discard = within(confirm).getByRole("button", { name: "버리기" });
+    const close = within(confirm).getByRole("button", { name: "닫기" });
+    expect(document.activeElement).toBe(cancel);
+    discard.focus();
+    fireEvent.keyDown(discard, { key: "Tab" });
+    expect(document.activeElement).toBe(close);
+    fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(discard);
+    fireEvent.click(cancel);
+    expect(document.activeElement).toBe(merchant);
+    expect(screen.queryAllByRole("alertdialog")).toHaveLength(0);
+    expect(document.querySelectorAll('[aria-modal="true"]')).toHaveLength(1);
   });
 });
 

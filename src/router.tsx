@@ -1,5 +1,6 @@
 import { type ComponentProps, type MouseEvent, useCallback, useMemo, useSyncExternalStore } from "react";
-import { kstMonth } from "../shared/dates";
+import { daysInMonth, kstDate, kstMonth } from "../shared/dates";
+import { type Section, sectionOf } from "./components/nav";
 
 export type RouteName =
   | "ledger"
@@ -79,13 +80,53 @@ function subscribe(listener: () => void): () => void {
 
 const currentUrl = () => `${location.pathname}${location.search}`;
 
-export function navigate(to: string, options: { readonly replace?: boolean } = {}): void {
-  if (to === currentUrl()) return;
-  const samePath = new URL(to, location.origin).pathname === location.pathname;
+type Position = { readonly x: number; readonly y: number };
+const sectionHistory = new Map<Section, Position & { readonly url: string }>();
+let arrival: (Position & { readonly url: string }) | null = null;
+
+/** Only section-return links consult section history; ordinary links remain fresh navigation. */
+export function sectionUrl(section: Section, root: string, active: boolean): string {
+  return active ? root : (sectionHistory.get(section)?.url ?? root);
+}
+
+export function takeNavigationArrival(url: string): Position | null {
+  const next = arrival?.url === url ? arrival : null;
+  arrival = null;
+  return next;
+}
+
+export function clearSectionHistory(): void {
+  sectionHistory.clear();
+  arrival = null;
+}
+
+export function navigate(
+  to: string,
+  options: { readonly replace?: boolean; readonly intent?: "fresh" | "return" } = {},
+): void {
+  if (to === currentUrl()) {
+    if (!options.replace && options.intent !== "return") {
+      document.getElementById("main")?.focus({ preventScroll: true });
+      window.scrollTo(0, 0);
+    }
+    return;
+  }
+  const leaving = sectionOf(matchRoute(location.pathname).name);
+  if (leaving) sectionHistory.set(leaving, { url: currentUrl(), x: window.scrollX, y: window.scrollY });
+  const destination = new URL(to, location.origin);
+  const section = sectionOf(matchRoute(destination.pathname).name);
+  const saved = section ? sectionHistory.get(section) : undefined;
+  arrival = options.replace
+    ? null
+    : {
+        x: 0,
+        y: 0,
+        ...(options.intent === "return" && saved?.url === to ? saved : {}),
+        url: `${destination.pathname}${destination.searchParams.size ? `?${destination.searchParams}` : ""}`,
+      };
   if (options.replace) history.replaceState(null, "", to);
   else history.pushState(null, "", to);
   window.dispatchEvent(new Event(NAVIGATE_EVENT));
-  if (!options.replace && !samePath) window.scrollTo(0, 0);
 }
 
 export function useRoute(): Route {
@@ -96,15 +137,19 @@ export function useRoute(): Route {
   }, [url]);
 }
 
-type LinkProps = Omit<ComponentProps<"a">, "href"> & { readonly to: string; readonly replace?: boolean };
+type LinkProps = Omit<ComponentProps<"a">, "href"> & {
+  readonly to: string;
+  readonly replace?: boolean;
+  readonly intent?: "fresh" | "return";
+};
 
-export function Link({ to, replace, onClick, target, ...rest }: LinkProps) {
+export function Link({ to, replace, intent = "fresh", onClick, target, ...rest }: LinkProps) {
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(event);
     if (event.defaultPrevented || event.button !== 0 || target) return;
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    navigate(to, replace ? { replace } : {});
+    navigate(to, { ...(replace ? { replace } : {}), intent });
   };
   return <a href={to} target={target} onClick={handleClick} {...rest} />;
 }
@@ -117,6 +162,30 @@ function withParam(route: Route, name: string, value: string): string {
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 const YEAR = /^\d{4}$/;
+const DAY = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+function validDay(date: string): boolean {
+  return DAY.test(date) && Number(date.slice(8)) <= daysInMonth(Number(date.slice(0, 4)), Number(date.slice(5, 7)));
+}
+
+/** Calendar integration: replace local selectedDate state with this URL-owned selection. */
+export function useSelectedDate(): readonly [date: string, setDate: (date: string) => void] {
+  const route = useRoute();
+  const [month] = useSelectedMonth();
+  const today = kstDate();
+  const raw = route.query.get("day");
+  const date = raw?.startsWith(month) && validDay(raw) ? raw : today.startsWith(month) ? today : `${month}-01`;
+  const setDate = useCallback((next: string) => {
+    if (!validDay(next)) return;
+    // Read the current URL: selecting an adjacent-month day may just have changed month.
+    const current = matchRoute(location.pathname, location.search);
+    const query = new URLSearchParams(current.query);
+    query.set("month", next.slice(0, 7));
+    query.set("day", next);
+    navigate(`${current.path}?${query}`, { replace: true });
+  }, []);
+  return [date, setDate] as const;
+}
 
 /** `?month=YYYY-MM` on `/` and `/calendar` (AM-3); defaults to the current KST month; changes replace history. */
 export function useSelectedMonth(): readonly [month: string, setMonth: (month: string) => void] {

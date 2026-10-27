@@ -2,19 +2,22 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { kstDate } from "../../shared/dates";
 import { formatRange, type InclusiveRange, periodFor, shiftPeriod } from "../app/periods";
+import { messages, useMessages } from "../i18n";
 import { IconButton } from "./Button";
 import { Field, Input } from "./Field";
 import { SegmentedControl } from "./SegmentedControl";
+import { componentMessages } from "./ui-messages";
 
 export type PeriodKind = "week" | "month" | "year" | "custom";
 export type PeriodValue = InclusiveRange & { readonly period: PeriodKind };
 
-const OPTIONS = [
-  { value: "week", label: "주" },
-  { value: "month", label: "월" },
-  { value: "year", label: "년" },
-  { value: "custom", label: "기간" },
-] as const;
+const periodOptions = () =>
+  [
+    { value: "week", label: messages(componentMessages).week },
+    { value: "month", label: messages(componentMessages).month },
+    { value: "year", label: messages(componentMessages).year },
+    { value: "custom", label: messages(componentMessages).custom },
+  ] as const;
 
 type Props = {
   readonly value: PeriodValue;
@@ -23,6 +26,7 @@ type Props = {
 };
 
 export function PeriodPicker({ value, onChange, monthStartDay = 1 }: Props) {
+  const m = useMessages(componentMessages);
   const [draft, setDraft] = useState<InclusiveRange>({ from: value.from, to: value.to });
   const kind = value.period === "custom" ? null : value.period;
   const invalid = draft.from === "" || draft.to === "" || draft.from > draft.to;
@@ -38,10 +42,10 @@ export function PeriodPicker({ value, onChange, monthStartDay = 1 }: Props) {
 
   return (
     <div className="period-picker">
-      <SegmentedControl label="기간 단위" options={OPTIONS} value={value.period} onChange={choose} />
+      <SegmentedControl label={m.periodUnit} options={periodOptions()} value={value.period} onChange={choose} />
       {kind === null ? (
         <div className="period-custom">
-          <Field label="시작일">
+          <Field label={m.startDate}>
             {(control) => (
               <Input
                 {...control}
@@ -51,7 +55,7 @@ export function PeriodPicker({ value, onChange, monthStartDay = 1 }: Props) {
               />
             )}
           </Field>
-          <Field label="종료일" error={invalid ? "시작일은 종료일보다 늦을 수 없어요" : null}>
+          <Field label={m.endDate} error={invalid ? m.invalidRange : null}>
             {(control) => (
               <Input
                 {...control}
@@ -67,13 +71,13 @@ export function PeriodPicker({ value, onChange, monthStartDay = 1 }: Props) {
             disabled={invalid}
             onClick={() => onChange({ period: "custom", ...draft })}
           >
-            적용
+            {m.apply}
           </button>
         </div>
       ) : (
         <div className="month-switcher">
           <IconButton
-            label="이전 기간"
+            label={m.previousPeriod}
             icon={ChevronLeft}
             onClick={() => onChange({ period: kind, ...shiftPeriod(kind, value, -1, monthStartDay) })}
           />
@@ -81,7 +85,7 @@ export function PeriodPicker({ value, onChange, monthStartDay = 1 }: Props) {
             {formatRange(value)}
           </div>
           <IconButton
-            label="다음 기간"
+            label={m.nextPeriod}
             icon={ChevronRight}
             onClick={() => onChange({ period: kind, ...shiftPeriod(kind, value, 1, monthStartDay) })}
           />

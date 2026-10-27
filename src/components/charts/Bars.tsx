@@ -1,5 +1,8 @@
 import { useState } from "react";
 import type { StatsTrend } from "../../../shared/schema";
+import { useMessages } from "../../i18n";
+import { formatMonth, formatMonthShort, formatWon } from "../../i18n/format";
+import { chartMessages } from "./messages";
 
 type Props = {
   readonly buckets: StatsTrend["buckets"];
@@ -7,12 +10,13 @@ type Props = {
   readonly currentMonth: string;
 };
 
-const monthLabel = (month: string) => `${Number(month.slice(5, 7))}월`;
-const yearMonthLabel = (month: string) => `${month.slice(0, 4)}년 ${Number(month.slice(5, 7))}월`;
+const monthLabel = formatMonthShort;
+const yearMonthLabel = formatMonth;
 const signedAmount = (amount: number, type: Props["type"]) =>
-  `${type === "income" && amount !== 0 ? "+" : type === "expense" && amount !== 0 ? "−" : ""}${Math.abs(amount).toLocaleString("ko-KR")}원`;
+  `${type === "income" && amount !== 0 ? "+" : type === "expense" && amount !== 0 ? "−" : ""}${formatWon(Math.abs(amount))}`;
 
 export function Bars({ buckets, type, currentMonth }: Props) {
+  const m = useMessages(chartMessages);
   const [selectedMonth, setSelectedMonth] = useState(currentMonth);
   const amountFor = (bucket: StatsTrend["buckets"][number]) => bucket[type];
   const max = Math.max(0, ...buckets.map(amountFor));
@@ -32,7 +36,7 @@ export function Bars({ buckets, type, currentMonth }: Props) {
             className="stats-bars-svg"
             viewBox={`0 0 ${Math.max(360, buckets.length * 44)} 152`}
             role="img"
-            aria-label="12개월 금액 추이"
+            aria-label={m.trendLabel}
           >
             {buckets.map((bucket, index) => {
               const x = 12 + index * 44;
@@ -76,7 +80,7 @@ export function Bars({ buckets, type, currentMonth }: Props) {
           </div>
         </div>
       </div>
-      {buckets.length === 0 ? <p className="stats-chart-empty">추이 데이터가 없어요</p> : null}
+      {buckets.length === 0 ? <p className="stats-chart-empty">{m.noTrend}</p> : null}
     </div>
   );
 }

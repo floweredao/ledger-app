@@ -77,6 +77,34 @@ test("an incompatible retained category rejects a type change without altering t
   ).toBe("expense");
 });
 
+test("a balance adjustment can be edited while its empty side stays empty", async () => {
+  const { request } = await setup();
+  const bank = await (
+    await request("/api/v1/assets", {
+      method: "POST",
+      body: { name: "테스트은행", kind: "bank", opening_balance: 100000 },
+    })
+  ).json();
+  const adjusted = await request(`/api/v1/assets/${bank.id}/balance-adjustment`, {
+    method: "POST",
+    body: { balance: 90000 },
+  });
+  expect(adjusted.status).toBe(201);
+  const { transaction } = await adjusted.json();
+  expect(transaction).toMatchObject({ type: "transfer", asset_id: bank.id, to_asset_id: null });
+  const edit = (body: unknown) => request(`/api/v1/transactions/${transaction.id}`, { method: "PATCH", body });
+  const edited = await edit({ amount: 12000, merchant: "샘플 조정" });
+  expect(edited.status).toBe(200);
+  expect(await edited.json()).toMatchObject({
+    amount: 12000,
+    merchant: "샘플 조정",
+    asset_id: bank.id,
+    to_asset_id: null,
+  });
+  expect((await edit({ to_asset_id: bank.id })).status).toBe(400);
+  expect((await edit({ asset_id: null })).status).toBe(400);
+});
+
 test("an unknown asset in a patch is a client error and leaves the transaction intact", async () => {
   const { app, request } = await setup();
   const transaction = await (

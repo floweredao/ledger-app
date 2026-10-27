@@ -9,8 +9,12 @@ import { CategoryIcon } from "../../components/CategoryIcon";
 import { EmptyState } from "../../components/EmptyState";
 import { MonthSwitcher } from "../../components/MonthSwitcher";
 import { Skeleton } from "../../components/Skeleton";
+import { messages, useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
+import { formatNumber, formatWon } from "../../i18n/format";
 import { useSelectedMonth } from "../../router";
 import { BudgetEditor } from "./BudgetEditor";
+import { budgetMessages } from "./budget-messages";
 import "./budgets.css";
 
 type Selection = {
@@ -21,7 +25,7 @@ type Selection = {
   readonly budgetMonth: string | null;
 };
 
-const money = (value: number) => `${Math.abs(value).toLocaleString("ko-KR")}원`;
+const money = (value: number) => formatWon(Math.abs(value));
 const progressPct = (spent: number, budget: number | null) =>
   budget === null || budget <= 0 ? (spent > 0 ? 100 : 0) : Math.min(100, (spent / budget) * 100);
 
@@ -33,10 +37,11 @@ function remainingDays(from: string, to: string): number {
 }
 
 function lineMessage(remaining: number | null, budget: number | null): string {
-  if (budget === null) return "총 예산을 설정해 주세요";
-  if (remaining === null) return "예산 정보를 확인할 수 없어요";
-  if (remaining < 0) return `${money(remaining)} 초과했어요`;
-  return `${money(remaining)} 남았어요`;
+  const m = messages(budgetMessages);
+  if (budget === null) return m.setTotalHint;
+  if (remaining === null) return m.unavailable;
+  if (remaining < 0) return m.overBudget(money(remaining));
+  return m.remainingAmount(money(remaining));
 }
 
 function BudgetMeter({
@@ -71,8 +76,12 @@ function CategoryRow({
   readonly item: BudgetStatus["categories"][number];
   readonly onEdit: (item: BudgetStatus["categories"][number]) => void;
 }) {
+  const m = useMessages(budgetMessages);
+  const c = useMessages(common);
   const hasBudget = item.budget !== null;
-  const amountLabel = hasBudget ? `${money(item.spent)} / ${money(item.budget ?? 0)}` : `${money(item.spent)} 지출`;
+  const amountLabel = hasBudget
+    ? `${money(item.spent)} / ${money(item.budget ?? 0)}`
+    : m.spentAmount(money(item.spent));
   return (
     <article className="budget-category-row">
       <CategoryIcon icon={item.icon} color={item.color} />
@@ -82,12 +91,14 @@ function CategoryRow({
             {item.name}
           </span>
           {hasBudget ? (
-            <span className={`budget-category-pct${item.over ? " is-over" : ""}`}>{Math.round(item.pct ?? 0)}%</span>
+            <span className={`budget-category-pct${item.over ? " is-over" : ""}`}>
+              {formatNumber(Math.round(item.pct ?? 0))}%
+            </span>
           ) : (
-            <span className="budget-needs-setup">미설정</span>
+            <span className="budget-needs-setup">{m.unset}</span>
           )}
         </div>
-        <BudgetMeter spent={item.spent} budget={item.budget} over={item.over} label={`${item.name} 예산 사용률`} />
+        <BudgetMeter spent={item.spent} budget={item.budget} over={item.over} label={m.usageLabel(item.name)} />
         <div className="budget-category-detail">
           <span className="num">{amountLabel}</span>
           {hasBudget ? (
@@ -99,18 +110,18 @@ function CategoryRow({
               size="sm"
               variant="ghost"
               className="budget-add"
-              aria-label={`${item.name} 예산 추가`}
+              aria-label={m.addNamed(item.name)}
               onClick={() => onEdit(item)}
             >
               <Plus aria-hidden="true" size={16} />
-              예산 추가
+              {m.addBudget}
             </Button>
           )}
         </div>
       </div>
       {hasBudget ? (
-        <Button variant="ghost" size="sm" aria-label={`${item.name} 예산 수정`} onClick={() => onEdit(item)}>
-          수정
+        <Button variant="ghost" size="sm" aria-label={m.editNamed(item.name)} onClick={() => onEdit(item)}>
+          {c.edit}
         </Button>
       ) : null}
     </article>
@@ -118,20 +129,30 @@ function CategoryRow({
 }
 
 export default function BudgetView() {
+  const m = useMessages(budgetMessages);
+  const c = useMessages(common);
   const [month, setMonth] = useSelectedMonth();
   const { data, error, loading, offline, reload } = useApi<BudgetStatus>(paths.budgets(month));
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [order, setOrder] = useState<{ month: string; ids: readonly string[] }>({ month, ids: [] });
 
-  const categories = [...(data?.categories ?? [])].sort(
+  const ranked = [...(data?.categories ?? [])].sort(
     (a, b) =>
       (a.budget === null ? 1 : 0) - (b.budget === null ? 1 : 0) ||
       (a.budget === null ? b.spent - a.spent : (b.pct ?? 0) - (a.pct ?? 0)),
   );
+  // Reading order belongs to this screen visit, not to changing usage values.
+  // A month change starts a new order; newly appearing categories append.
+  const ids = order.month === month ? order.ids : [];
+  const added = ranked.filter((item) => !ids.includes(item.category_id)).map((item) => item.category_id);
+  const currentIds = [...ids, ...added];
+  if (order.month !== month || added.length > 0) setOrder({ month, ids: currentIds });
+  const categories = ranked.sort((a, b) => currentIds.indexOf(a.category_id) - currentIds.indexOf(b.category_id));
 
   const editTotal = () =>
     setSelection({
       categoryId: null,
-      categoryName: "전체",
+      categoryName: m.all,
       amount: data?.total.budget ?? null,
       budgetId: data?.total.budget_id ?? null,
       budgetMonth: data?.total.budget_month ?? null,
@@ -146,17 +167,17 @@ export default function BudgetView() {
       budgetMonth: item.budget_month,
     });
 
-  if (loading && !data) return <Skeleton rows={5} label="예산을 불러오는 중" />;
+  if (loading && !data) return <Skeleton rows={5} label={m.loading} />;
   if (error && !data)
     return (
       <EmptyState
         tone="error"
         icon={CircleAlert}
-        title="예산을 불러오지 못했어요"
-        description="연결을 확인한 뒤 다시 시도해 주세요."
+        title={m.loadError}
+        description={m.checkConnection}
         action={
           <Button variant="primary" onClick={reload}>
-            다시 시도
+            {c.retry}
           </Button>
         }
       />
@@ -171,7 +192,7 @@ export default function BudgetView() {
       <header className="budget-header">
         <div>
           <h2 className="section-title" id="budget-heading">
-            예산 현황
+            {m.title}
           </h2>
           <p className="budget-range num">{rangeLabel}</p>
         </div>
@@ -180,35 +201,33 @@ export default function BudgetView() {
 
       {offline ? (
         <p className="budget-offline" role="status">
-          오프라인 저장 예산을 보여주고 있어요
+          {m.offline}
         </p>
       ) : null}
       {error && data ? (
         <p className="budget-refresh-error" role="status">
-          최신 예산을 가져오지 못했어요. 저장된 정보를 보여주고 있어요.
+          {m.refreshError}
         </p>
       ) : null}
 
-      <section className={`budget-total-card${totalOver ? " is-over" : ""}`} aria-label="전체 예산">
+      <section className={`budget-total-card${totalOver ? " is-over" : ""}`} aria-label={m.totalBudget}>
         <div className="budget-total-top">
           <div>
-            <p className="budget-eyebrow">이번 기간 전체 예산</p>
-            <p className="budget-total-amount num">
-              {data.total.budget === null ? "미설정" : money(data.total.budget)}
-            </p>
+            <p className="budget-eyebrow">{m.periodBudget}</p>
+            <p className="budget-total-amount num">{data.total.budget === null ? m.unset : money(data.total.budget)}</p>
           </div>
-          <Button variant="secondary" onClick={editTotal} aria-label="총 예산 설정">
-            {data.total.budget === null ? "예산 설정" : "예산 수정"}
+          <Button variant="secondary" onClick={editTotal} aria-label={m.setTotal}>
+            {data.total.budget === null ? m.setBudget : m.editBudget}
           </Button>
         </div>
-        <BudgetMeter spent={data.total.spent} budget={data.total.budget} over={totalOver} label="전체 예산 사용률" />
+        <BudgetMeter spent={data.total.spent} budget={data.total.budget} over={totalOver} label={m.totalUsage} />
         <div className="budget-total-stats">
           <div>
-            <span className="budget-stat-label">사용</span>
+            <span className="budget-stat-label">{m.spent}</span>
             <strong className="num">{money(data.total.spent)}</strong>
           </div>
           <div>
-            <span className="budget-stat-label">남은 예산</span>
+            <span className="budget-stat-label">{m.remaining}</span>
             <strong className={`num${totalOver ? " is-over" : ""}`}>
               {data.total.remaining === null
                 ? "—"
@@ -221,23 +240,19 @@ export default function BudgetView() {
         </p>
         <p className="budget-days">
           <CalendarClock aria-hidden="true" size={16} />
-          {days > 0 ? `기간 종료까지 ${days}일 남았어요` : "예산 기간이 끝났어요"}
+          {days > 0 ? m.daysRemaining(days) : m.ended}
         </p>
       </section>
 
       <section className="budget-categories" aria-labelledby="budget-categories-heading">
         <div className="budget-section-heading">
           <h3 className="section-title" id="budget-categories-heading">
-            분류별 예산
+            {m.categories}
           </h3>
-          <span>{categories.length}개</span>
+          <span>{m.categoryCount(categories.length)}</span>
         </div>
         {categories.length === 0 ? (
-          <EmptyState
-            icon={RotateCcw}
-            title="이번 기간 지출이 없어요"
-            description="지출이 기록되면 분류별 예산을 확인할 수 있어요."
-          />
+          <EmptyState icon={RotateCcw} title={m.empty} description={m.emptyHint} />
         ) : (
           <div className="budget-category-list">
             {categories.map((item) => (
@@ -253,7 +268,7 @@ export default function BudgetView() {
         onClose={() => setSelection(null)}
         month={month}
         categoryId={selection?.categoryId ?? null}
-        categoryName={selection?.categoryName ?? "전체"}
+        categoryName={selection?.categoryName ?? m.all}
         amount={selection?.amount ?? null}
         budgetId={selection?.budgetId ?? null}
         budgetMonth={selection?.budgetMonth ?? null}

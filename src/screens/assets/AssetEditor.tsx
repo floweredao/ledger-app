@@ -5,26 +5,24 @@ import {
   AssetInputSchema,
   AssetKindSchema,
   type AssetPatch,
+  type AssetSummary,
+  MAX_AMOUNT,
 } from "../../../shared/schema";
 import { api, type Items, paths } from "../../api/client";
 import { invalidate, useApi } from "../../api/hooks";
 import { Button } from "../../components/Button";
 import { ConfirmDialog } from "../../components/Dialog";
 import { Field, Input, Select } from "../../components/Field";
+import { SegmentedControl } from "../../components/SegmentedControl";
 import { Sheet } from "../../components/Sheet";
 import { Skeleton } from "../../components/Skeleton";
 import { toast } from "../../components/Toast";
+import { useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
+import { formatSigned } from "../../i18n/format";
+import { assetsMessages } from "./messages";
 import "./assets.css";
 
-const KIND_LABELS = {
-  cash: "현금",
-  bank: "입출금",
-  check_card: "체크카드",
-  credit_card: "신용카드",
-  savings: "저축",
-  other: "기타",
-  loan: "대출",
-} as const;
 const blank: AssetInput = {
   name: "",
   kind: "bank",
@@ -57,9 +55,25 @@ type Props = {
   readonly onSaved: () => void;
   readonly id: string | null;
 };
+type RecordAs = "adjustment" | "flow";
 export function AssetEditor({ open, onClose, id, onSaved }: Props) {
-  const assets = useApi<Items<Asset>>(open ? paths.assets({ include_hidden: true }) : null);
+  const m = useMessages(assetsMessages);
+  const c = useMessages(common);
+  const KIND_LABELS = {
+    cash: m.cash,
+    bank: m.bank,
+    check_card: m.checkCard,
+    credit_card: m.creditCard,
+    savings: m.savings,
+    other: m.other,
+    loan: m.loan,
+  } as const;
+
+  const assets = useApi<Items<AssetSummary["assets"][number]>>(open ? paths.assets({ include_hidden: true }) : null);
   const [form, setForm] = useState<AssetInput>(blank);
+  const [balanceText, setBalanceText] = useState("");
+  const [recordAs, setRecordAs] = useState<RecordAs>("adjustment");
+  const originalBalance = useRef(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [ready, setReady] = useState(false);
@@ -77,13 +91,23 @@ export function AssetEditor({ open, onClose, id, onSaved }: Props) {
     if (initialized.current === sessionKey || (id && !asset)) return;
     const initial = asset ? editable(asset) : blank;
     original.current = initial;
+    originalBalance.current = asset?.balance ?? 0;
+    setBalanceText(String(originalBalance.current));
+    setRecordAs("adjustment");
     setForm(initial);
     setErrors({});
     setDiscard(false);
     initialized.current = sessionKey;
     setReady(true);
   }, [open, id, sessionKey, asset]);
-  const dirty = JSON.stringify(form) !== JSON.stringify(original.current);
+  // Editing an existing asset asks for today's balance instead of the opening one; a debit card follows its account.
+  const showBalance = id !== null && form.kind !== "check_card";
+  const enteredBalance = balanceText.trim() === "" ? Number.NaN : Number(balanceText);
+  const balanceValid = Number.isInteger(enteredBalance) && Math.abs(enteredBalance) <= MAX_AMOUNT;
+  const difference = showBalance && balanceValid ? enteredBalance - originalBalance.current : 0;
+  const dirty =
+    JSON.stringify(form) !== JSON.stringify(original.current) ||
+    (showBalance && balanceText !== String(originalBalance.current));
   const close = () => (dirty ? setDiscard(true) : onClose());
   const card = form.kind === "check_card" || form.kind === "credit_card";
   const accounts =
@@ -93,9 +117,10 @@ export function AssetEditor({ open, onClose, id, onSaved }: Props) {
     if (!ready || saving) return;
     const parsed = AssetInputSchema.safeParse(form);
     const next: Record<string, string> = {};
-    if (!parsed.success) for (const issue of parsed.error.issues) next[String(issue.path[0])] = issue.message;
+    if (!parsed.success) for (const issue of parsed.error.issues) next[String(issue.path[0])] = m.invalidValue;
     if (card && !accounts.some((item) => item.id === form.linked_asset_id))
-      next.linked_asset_id = "연결된 계좌를 선택해주세요";
+      next.linked_asset_id = m.chooseLinkedAccount;
+    if (showBalance && !balanceValid) next.balance = m.invalidValue;
     setErrors(next);
     if (!parsed.success || Object.keys(next).length) return;
     setSaving(true);
@@ -105,12 +130,20 @@ export function AssetEditor({ open, onClose, id, onSaved }: Props) {
           Object.entries(parsed.data).filter(([key, value]) => value !== Reflect.get(original.current, key)),
         );
         if (Object.keys(patch).length) await api.patchAsset(id, patch);
+        if (difference !== 0) {
+          await api.adjustBalance(id, {
+            balance: enteredBalance,
+            record_as: recordAs === "adjustment" ? "adjustment" : difference > 0 ? "income" : "expense",
+            merchant: m.balanceAdjustment,
+          });
+          for (const prefix of ["transactions", "stats", "budgets"]) invalidate(prefix);
+        }
       } else await api.createAsset(parsed.data);
       invalidate("assets");
-      toast({ message: id ? "자산이 수정되었어요" : "자산이 추가되었어요" });
+      toast({ message: difference !== 0 ? m.balanceAdjusted : id ? m.assetUpdated : m.assetAdded });
       onSaved();
-    } catch (error) {
-      setErrors({ form: error instanceof Error ? error.message : "저장에 실패했어요" });
+    } catch {
+      setErrors({ form: m.saveFailed });
     } finally {
       setSaving(false);
     }
@@ -122,11 +155,11 @@ export function AssetEditor({ open, onClose, id, onSaved }: Props) {
       <Sheet
         open={open}
         onClose={close}
-        title={id ? "자산 편집" : "자산 추가"}
+        title={id ? m.editAsset : m.addAsset}
         footer={
           <div className="asset-actions">
             <Button onClick={close} disabled={saving}>
-              취소
+              {c.cancel}
             </Button>
             <Button
               variant="primary"
@@ -134,19 +167,20 @@ export function AssetEditor({ open, onClose, id, onSaved }: Props) {
               form="asset-editor-form"
               disabled={saving || !ready || Boolean(missing) || failed}
             >
-              저장
+              {c.save}
             </Button>
           </div>
         }
       >
         {failed ? (
           <div role="alert">
-            자산을 불러올 수 없어요<Button onClick={assets.reload}>다시 시도</Button>
+            {m.loadAssetsFailed}
+            <Button onClick={assets.reload}>{c.retry}</Button>
           </div>
         ) : missing ? (
-          <p role="alert">자산을 찾을 수 없어요</p>
+          <p role="alert">{m.assetMissing}</p>
         ) : !ready ? (
-          <Skeleton rows={4} />
+          <Skeleton rows={4} label={m.loading} />
         ) : (
           <form id="asset-editor-form" className="asset-form" onSubmit={submit} noValidate>
             {errors.form && (
@@ -154,7 +188,7 @@ export function AssetEditor({ open, onClose, id, onSaved }: Props) {
                 {errors.form}
               </p>
             )}
-            <Field label="이름" error={errors.name ?? null}>
+            <Field label={m.name} error={errors.name ?? null}>
               {(control) => (
                 <Input
                   {...control}
@@ -164,7 +198,7 @@ export function AssetEditor({ open, onClose, id, onSaved }: Props) {
                 />
               )}
             </Field>
-            <Field label="종류">
+            <Field label={m.kind}>
               {(control) => (
                 <Select
                   {...control}
@@ -190,7 +224,7 @@ export function AssetEditor({ open, onClose, id, onSaved }: Props) {
                 </Select>
               )}
             </Field>
-            <Field label="그룹" error={errors.group_name ?? null}>
+            <Field label={m.group} error={errors.group_name ?? null}>
               {(control) => (
                 <Input
                   {...control}
@@ -200,23 +234,66 @@ export function AssetEditor({ open, onClose, id, onSaved }: Props) {
                 />
               )}
             </Field>
-            <Field label="기존 잔액" error={errors.opening_balance ?? null}>
-              {(control) => (
-                <Input
-                  {...control}
-                  type="number"
-                  value={form.opening_balance}
-                  onChange={(e) => setForm({ ...form, opening_balance: Number(e.target.value) })}
-                />
-              )}
-            </Field>
+            {id === null ? (
+              <Field label={m.openingBalance} error={errors.opening_balance ?? null}>
+                {(control) => (
+                  <Input
+                    {...control}
+                    type="number"
+                    value={form.opening_balance}
+                    onChange={(e) => setForm({ ...form, opening_balance: Number(e.target.value) })}
+                  />
+                )}
+              </Field>
+            ) : showBalance ? (
+              <>
+                <Field
+                  label={m.currentBalance}
+                  hint={
+                    difference === 0
+                      ? m.currentBalanceHint
+                      : m.differenceLabel(formatSigned(difference > 0 ? "income" : "expense", Math.abs(difference)))
+                  }
+                  error={errors.balance ?? null}
+                >
+                  {(control) => (
+                    <Input
+                      {...control}
+                      type="number"
+                      inputMode="numeric"
+                      value={balanceText}
+                      onChange={(e) => setBalanceText(e.target.value)}
+                    />
+                  )}
+                </Field>
+                {difference !== 0 && (
+                  <div className="field">
+                    <span className="field-label" aria-hidden="true">
+                      {m.recordAs}
+                    </span>
+                    <SegmentedControl<RecordAs>
+                      label={m.recordAs}
+                      value={recordAs}
+                      onChange={setRecordAs}
+                      options={[
+                        { value: "adjustment", label: m.adjustmentOnly },
+                        { value: "flow", label: difference > 0 ? m.asIncome : m.asExpense },
+                      ]}
+                    />
+                    <p className="field-hint">
+                      {recordAs === "adjustment"
+                        ? m.adjustmentOnlyHint
+                        : difference > 0
+                          ? m.asIncomeHint
+                          : m.asExpenseHint}
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : null}
             <Field
-              label="잔액 기준일 (선택)"
-              hint={
-                form.kind === "check_card"
-                  ? "체크카드 잔액은 연결 계좌의 기준일을 따라요."
-                  : "한국 시간 기준, 이날 이전 거래는 기존 잔액에 포함돼요. 비우면 모든 거래를 반영해요."
-              }
+              label={m.openingDate}
+              hint={form.kind === "check_card" ? m.debitDateHint : m.balanceDateHint}
               error={errors.opening_date ?? null}
             >
               {(control) => (
@@ -229,18 +306,18 @@ export function AssetEditor({ open, onClose, id, onSaved }: Props) {
               )}
             </Field>
             {card && (
-              <Field label="연결된 계좌" error={errors.linked_asset_id ?? null}>
+              <Field label={m.linkedAccount} error={errors.linked_asset_id ?? null}>
                 {(control) => (
                   <Select
                     {...control}
                     value={form.linked_asset_id ?? ""}
                     onChange={(e) => setForm({ ...form, linked_asset_id: e.target.value || null })}
                   >
-                    <option value="">선택...</option>
+                    <option value="">{m.choose}</option>
                     {accounts.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.name}
-                        {item.hidden ? " (숨김)" : ""}
+                        {item.hidden ? m.hiddenOption : ""}
                       </option>
                     ))}
                   </Select>
@@ -248,7 +325,7 @@ export function AssetEditor({ open, onClose, id, onSaved }: Props) {
               </Field>
             )}
             {card && (
-              <Field label="마감일" error={errors.settlement_day ?? null}>
+              <Field label={m.settlementDay} error={errors.settlement_day ?? null}>
                 {(control) => (
                   <Input
                     {...control}
@@ -265,7 +342,7 @@ export function AssetEditor({ open, onClose, id, onSaved }: Props) {
             )}
             {form.kind === "credit_card" && (
               <>
-                <Field label="결제일" error={errors.payment_day ?? null}>
+                <Field label={m.paymentDay} error={errors.payment_day ?? null}>
                   {(control) => (
                     <Input
                       {...control}
@@ -279,7 +356,7 @@ export function AssetEditor({ open, onClose, id, onSaved }: Props) {
                     />
                   )}
                 </Field>
-                <Field label="실적 목표 (선택)" error={errors.performance_target ?? null}>
+                <Field label={m.targetOptional} error={errors.performance_target ?? null}>
                   {(control) => (
                     <Input
                       {...control}
@@ -300,16 +377,16 @@ export function AssetEditor({ open, onClose, id, onSaved }: Props) {
                 checked={form.hidden}
                 onChange={(e) => setForm({ ...form, hidden: e.target.checked })}
               />
-              숨김
+              {m.hidden}
             </label>
           </form>
         )}
       </Sheet>
       <ConfirmDialog
         open={discard}
-        title="작성 중인 내용을 버릴까요?"
-        confirmLabel="버리기"
-        cancelLabel="계속 작성"
+        title={m.discardTitle}
+        confirmLabel={m.discard}
+        cancelLabel={m.keepEditing}
         onCancel={() => setDiscard(false)}
         onConfirm={() => {
           setDiscard(false);

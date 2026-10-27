@@ -12,10 +12,15 @@ import {
 } from "../../components/charts/StatsPeriodPicker";
 import { EmptyState } from "../../components/EmptyState";
 import { Skeleton } from "../../components/Skeleton";
+import { useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
 import { useRoute } from "../../router";
+import { statsMessages } from "./messages";
 import "./stats.css";
 
 export default function StatsView() {
+  const m = useMessages(statsMessages);
+  const c = useMessages(common);
   const route = useRoute();
   const period = parseStatsPeriod(route.query.get("period"));
   const type = parseStatsType(route.query.get("type"));
@@ -28,16 +33,16 @@ export default function StatsView() {
       <EmptyState
         tone="error"
         icon={AlertCircle}
-        title="통계 설정을 불러오지 못했어요"
+        title={m.settingsFailed}
         action={
           <Button variant="primary" onClick={settings.reload}>
-            다시 시도
+            {c.retry}
           </Button>
         }
       />
     );
   }
-  if (!settings.data) return <Skeleton rows={2} label="통계 설정을 불러오는 중" />;
+  if (!settings.data) return <Skeleton rows={2} label={m.loadingSettings} />;
 
   return (
     <div className="stats-view">
@@ -45,7 +50,7 @@ export default function StatsView() {
       <StatsPanels key={route.query.toString()} period={period} range={range} type={type} />
       {settings.offline ? (
         <p className="stats-offline" role="status">
-          오프라인에서 저장된 설정을 사용하고 있어요
+          {m.offlineSettings}
         </p>
       ) : null}
     </div>

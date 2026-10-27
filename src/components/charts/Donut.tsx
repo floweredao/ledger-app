@@ -1,5 +1,9 @@
 import type { StatsCategories } from "../../../shared/schema";
+import { messages, useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
+import { formatNumber, formatWon } from "../../i18n/format";
 import { categoryColor } from "../CategoryIcon";
+import { chartMessages } from "./messages";
 
 export type DonutRow = StatsCategories["rows"][number] | StatsCategories["rows"][number]["children"][number];
 
@@ -25,15 +29,19 @@ export function calculateArcAngles(values: readonly number[]): readonly number[]
 
 function signedAmount(amount: number, type: Props["type"]): string {
   const signed = type === "expense" ? -amount : amount;
-  return `${signed > 0 ? "+" : signed < 0 ? "−" : ""}${Math.abs(signed).toLocaleString("ko-KR")}원`;
+  return `${signed > 0 ? "+" : signed < 0 ? "−" : ""}${formatWon(Math.abs(signed))}`;
 }
 
 function deltaLabel(delta: number | undefined): string | null {
   if (delta === undefined) return null;
-  return `지난 기간보다 ${delta > 0 ? "+" : delta < 0 ? "−" : ""}${Math.abs(delta).toLocaleString("ko-KR")}원`;
+  return messages(chartMessages).comparedToPrevious(
+    `${delta > 0 ? "+" : delta < 0 ? "−" : ""}${formatWon(Math.abs(delta))}`,
+  );
 }
 
 export function Donut({ rows, total, type, deltas = new Map(), onSelect }: Props) {
+  const m = useMessages(chartMessages);
+  const c = useMessages(common);
   const visibleRows = rows.filter((row) => row.amount > 0);
   const angles = calculateArcAngles(visibleRows.map((row) => row.amount));
   const circumference = 2 * Math.PI * 72;
@@ -46,7 +54,7 @@ export function Donut({ rows, total, type, deltas = new Map(), onSelect }: Props
           className="stats-donut-svg"
           viewBox="0 0 200 200"
           role="img"
-          aria-label={`분류별 합계 ${signedAmount(total, type)}`}
+          aria-label={m.categoryTotal(signedAmount(total, type))}
         >
           <circle className="stats-donut-track" cx="100" cy="100" r="72" />
           {visibleRows.map((row, index) => {
@@ -69,11 +77,11 @@ export function Donut({ rows, total, type, deltas = new Map(), onSelect }: Props
           })}
         </svg>
         <div className="stats-donut-total">
-          <span>합계</span>
+          <span>{m.total}</span>
           <strong className="num">{signedAmount(total, type)}</strong>
         </div>
       </div>
-      <ul className="stats-ranked-list" aria-label="분류별 금액과 비율">
+      <ul className="stats-ranked-list" aria-label={m.categoriesLabel}>
         {rows.map((row) => {
           const delta = row.category_id ? deltas.get(row.category_id) : undefined;
           const pct = total === 0 ? 0 : (row.amount / total) * 100;
@@ -83,13 +91,19 @@ export function Donut({ rows, total, type, deltas = new Map(), onSelect }: Props
                 className="stats-ranked-row"
                 type="button"
                 onClick={() => onSelect(row)}
-                aria-label={`${row.name}, ${signedAmount(row.amount, type)}, ${pct.toFixed(1)}퍼센트${deltaLabel(delta) ? `, ${deltaLabel(delta)}` : ""}`}
+                aria-label={m.rowLabel(
+                  row.category_id === null ? c.uncategorized : row.name,
+                  signedAmount(row.amount, type),
+                  formatNumber(pct, { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+                  deltaLabel(delta),
+                )}
               >
                 <span className="stats-category-mark" style={{ backgroundColor: categoryColor(row.color) }} />
                 <span className="stats-ranked-copy">
-                  <span className="stats-ranked-name">{row.name}</span>
+                  <span className="stats-ranked-name">{row.category_id === null ? c.uncategorized : row.name}</span>
                   <span className="stats-ranked-meta num">
-                    {pct.toFixed(1)}%{deltaLabel(delta) ? ` · ${deltaLabel(delta)}` : ""}
+                    {formatNumber(pct, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%
+                    {deltaLabel(delta) ? ` · ${deltaLabel(delta)}` : ""}
                   </span>
                 </span>
                 <strong className="stats-ranked-amount num">{signedAmount(row.amount, type)}</strong>
@@ -98,7 +112,7 @@ export function Donut({ rows, total, type, deltas = new Map(), onSelect }: Props
           );
         })}
       </ul>
-      {rows.length === 0 ? <p className="stats-chart-empty">표시할 분류가 없어요</p> : null}
+      {rows.length === 0 ? <p className="stats-chart-empty">{m.noCategories}</p> : null}
     </div>
   );
 }

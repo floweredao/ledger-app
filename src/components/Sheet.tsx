@@ -10,6 +10,8 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useMessages } from "../i18n";
+import { common } from "../i18n/common";
 import { IconButton } from "./Button";
 
 const FOCUSABLE =
@@ -21,6 +23,8 @@ const stack: string[] = [];
 
 export type SheetProps = {
   readonly open: boolean;
+  /** A covering confirmation owns interaction and accessibility until it closes. */
+  readonly suspended?: boolean;
   readonly onClose: () => void;
   readonly title: string;
   readonly description?: string;
@@ -49,6 +53,7 @@ export function Sheet(props: SheetProps) {
 
 function SheetPanel({
   open,
+  suspended = false,
   onClose,
   title,
   description,
@@ -59,6 +64,8 @@ function SheetPanel({
   initialFocusRef,
   onExited,
 }: SheetProps & { readonly onExited: () => void }) {
+  const c = useMessages(common);
+
   const id = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
@@ -104,20 +111,12 @@ function SheetPanel({
       }
       if (event.key !== "Tab" || !panelRef.current) return;
       const items = focusables(panelRef.current);
-      const first = items[0];
-      const last = items.at(-1);
-      if (!first || !last) {
-        event.preventDefault();
-        return;
-      }
+      event.preventDefault();
+      if (items.length === 0) return;
       const active = document.activeElement;
-      if (event.shiftKey && (active === first || !panelRef.current.contains(active))) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && (active === last || !panelRef.current.contains(active))) {
-        event.preventDefault();
-        first.focus();
-      }
+      const index = active instanceof HTMLElement ? items.indexOf(active) : -1;
+      const next = event.shiftKey ? (index <= 0 ? items.length - 1 : index - 1) : (index + 1) % items.length;
+      items[next]?.focus();
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -188,7 +187,7 @@ function SheetPanel({
         <h2 className="sheet-title" id={titleId}>
           {title}
         </h2>
-        <IconButton label="닫기" icon={X} onClick={onClose} />
+        <IconButton label={c.close} icon={X} onClick={onClose} />
       </header>
       {description ? (
         <p className="sheet-description" id={descriptionId}>
@@ -200,14 +199,20 @@ function SheetPanel({
     </>
   );
   return (
-    <div className="sheet-root" data-variant={variant} data-state={open ? "open" : "closing"}>
+    <div
+      className="sheet-root"
+      data-variant={variant}
+      data-state={open ? "open" : "closing"}
+      inert={!open || suspended}
+      aria-hidden={!open || suspended ? true : undefined}
+    >
       <button type="button" className="sheet-scrim" tabIndex={-1} aria-hidden="true" onClick={onClose} />
       {role === "alertdialog" ? (
-        <div role="alertdialog" aria-modal="true" {...panelProps}>
+        <div role="alertdialog" aria-modal={open && !suspended ? true : undefined} {...panelProps}>
           {content}
         </div>
       ) : (
-        <div role="dialog" aria-modal="true" {...panelProps}>
+        <div role="dialog" aria-modal={open && !suspended ? true : undefined} {...panelProps}>
           {content}
         </div>
       )}

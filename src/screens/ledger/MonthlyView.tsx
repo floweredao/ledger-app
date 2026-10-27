@@ -1,12 +1,13 @@
+import { useMessages } from "../../i18n";
+import { ledgerMessages } from "./messages";
 import "./daily.css";
-import { formatDisplayDate } from "../../../shared/dates";
-import { formatSigned } from "../../../shared/money";
 import type { StatsTrend } from "../../../shared/schema";
 import { paths } from "../../api/client";
 import { useApi } from "../../api/hooks";
 import { calendarYearFilter } from "../../app/periods";
 import { EmptyState } from "../../components/EmptyState";
 import { Skeleton } from "../../components/Skeleton";
+import { formatDisplayDate, formatMonth, formatMonthShort, formatSigned } from "../../i18n/format";
 import { Link, useSelectedYear } from "../../router";
 
 type MonthTotal = { readonly month: string; readonly income: number; readonly expense: number; readonly net: number };
@@ -21,29 +22,35 @@ function monthsFor(year: string, buckets: StatsTrend["buckets"]): readonly Month
 }
 
 export default function MonthlyView() {
+  const m = useMessages(ledgerMessages);
+
   const [year] = useSelectedYear();
   const range = calendarYearFilter(year);
   const trend = useApi<StatsTrend>(paths.statsTrend({ end: `${year}-12`, months: 12, basis: "calendar" }));
   const buckets = trend.data?.buckets;
 
-  if (!buckets && trend.loading) return <Skeleton rows={6} label={`${year}년 월별 내역 불러오는 중`} />;
+  if (!buckets && trend.loading) return <Skeleton rows={6} label={m.loadingYear(year)} />;
   if (!buckets) {
-    return <EmptyState tone="error" title="월별 내역을 불러오지 못했어요" description="잠시 후 다시 시도해 주세요." />;
+    return <EmptyState tone="error" title={m.loadMonthlyFailed} description={m.tryLater} />;
   }
 
   return (
-    <section className="monthly-view" aria-label={`${year}년 월별 내역`}>
+    <section className="monthly-view" aria-label={m.yearRecords(year)}>
       <div className="monthly-grid">
         {monthsFor(year, buckets).map((month) => {
-          const monthNumber = Number(month.month.slice(5, 7));
           return (
             <Link
               key={month.month}
               to={`/?month=${month.month}`}
               className="monthly-row"
-              aria-label={`${year}년 ${monthNumber}월 수입 ${formatSigned("income", month.income)}, 지출 ${formatSigned("expense", month.expense)}, 합계 ${month.net > 0 ? "+" : ""}${formatSigned("transfer", month.net)}`}
+              aria-label={m.monthSummary(
+                formatMonth(month.month),
+                formatSigned("income", month.income),
+                formatSigned("expense", month.expense),
+                `${month.net > 0 ? "+" : ""}${formatSigned("transfer", month.net)}`,
+              )}
             >
-              <span className="monthly-month">{monthNumber}월</span>
+              <span className="monthly-month">{formatMonthShort(month.month)}</span>
               <span className="monthly-values">
                 <span data-kind="income">{formatSigned("income", month.income)}</span>
                 <span data-kind="expense">{formatSigned("expense", month.expense)}</span>

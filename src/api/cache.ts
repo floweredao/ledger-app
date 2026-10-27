@@ -1,17 +1,29 @@
 import { TransactionListSchema } from "../../shared/schema";
 import { offlineDatabase, storedRequest } from "../features/offline/storage";
 
+const SAVED_AT_KEY = "__server_saved_at";
+const listeners = new Set<() => void>();
+export function subscribeCacheSavedAt(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+export async function readCacheSavedAt(): Promise<number | undefined> {
+  return storedRequest<number | undefined>("cache", "readonly", (store) => store.get(SAVED_AT_KEY));
+}
+
 export async function readCache<T>(key: string): Promise<T | undefined> {
   return storedRequest<T | undefined>("cache", "readonly", (store) => store.get(key));
 }
 
 export async function writeCache(key: string, value: unknown): Promise<void> {
+  const savedAt = Date.now();
   const list = key.split("?")[0] === "transactions" ? TransactionListSchema.safeParse(value) : null;
   const db = await offlineDatabase();
   await new Promise<void>((resolve, reject) => {
     const transaction = db.transaction("cache", "readwrite");
     const store = transaction.objectStore("cache");
     store.put(value, key);
+    store.put(savedAt, SAVED_AT_KEY);
     if (list?.success) {
       for (const row of list.data.items) store.put(row, `transactions/${encodeURIComponent(row.id)}`);
     }
@@ -19,10 +31,12 @@ export async function writeCache(key: string, value: unknown): Promise<void> {
     transaction.onabort = () => reject(transaction.error);
     transaction.onerror = () => reject(transaction.error);
   });
+  for (const listener of listeners) listener();
 }
 
 export async function clearCache(): Promise<void> {
   await storedRequest("cache", "readwrite", (store) => store.clear());
+  for (const listener of listeners) listener();
 }
 
 /**

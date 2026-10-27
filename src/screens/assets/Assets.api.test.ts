@@ -2,8 +2,10 @@ import type { Database } from "bun:sqlite";
 import { afterEach, beforeEach, expect, test } from "bun:test";
 import { Hono } from "hono";
 import { openDb } from "../../../server/db";
+import { statsSummary } from "../../../server/domain/stats";
 import { type AppBindings, onError } from "../../../server/http";
 import { assetsRoutes } from "../../../server/routes/assets";
+import { addDays, kstDate } from "../../../shared/dates";
 import { type AssetInput, AssetSchema, AssetSummarySchema } from "../../../shared/schema";
 
 let db: Database;
@@ -128,6 +130,72 @@ test("hide patch leaves omitted balance and group unchanged", async () => {
     opening_balance: 100000,
     group_name: "샘플그룹",
   });
+});
+async function adjust(id: string, body: unknown) {
+  return request(`assets/${id}/balance-adjustment`, "POST", body);
+}
+const todayStats = () => statsSummary(db, { from: kstDate(), to: addDays(kstDate(), 1) });
+const balanceOf = async (id: string) => (await summary()).assets.find((item) => item.id === id)?.balance;
+
+test("current balance records the difference as an adjustment outside income and expense totals", async () => {
+  const bank = await create({ name: "테스트은행", kind: "bank", opening_balance: 100000 });
+  const up = await adjust(bank.id, { balance: 130000 });
+  expect(up.status).toBe(201);
+  expect(await up.json()).toMatchObject({
+    difference: 30000,
+    transaction: { type: "transfer", amount: 30000, asset_id: null, to_asset_id: bank.id, merchant: "잔액 조정" },
+  });
+  expect(await balanceOf(bank.id)).toBe(130000);
+  const down = await adjust(bank.id, { balance: 95000, merchant: "Balance adjustment" });
+  expect(down.status).toBe(201);
+  expect(await down.json()).toMatchObject({
+    difference: -35000,
+    transaction: {
+      type: "transfer",
+      amount: 35000,
+      asset_id: bank.id,
+      to_asset_id: null,
+      merchant: "Balance adjustment",
+    },
+  });
+  expect(await balanceOf(bank.id)).toBe(95000);
+  expect(todayStats()).toMatchObject({ income: 0, expense: 0 });
+});
+test("a chosen expense or income records the difference as that type", async () => {
+  const bank = await create({ name: "테스트은행", kind: "bank", opening_balance: 100000 });
+  const spent = await adjust(bank.id, { balance: 70000, record_as: "expense" });
+  expect(spent.status).toBe(201);
+  expect((await spent.json()).transaction).toMatchObject({ type: "expense", amount: 30000, asset_id: bank.id });
+  const earned = await adjust(bank.id, { balance: 80000, record_as: "income" });
+  expect((await earned.json()).transaction).toMatchObject({ type: "income", amount: 10000, asset_id: bank.id });
+  expect(await balanceOf(bank.id)).toBe(80000);
+  expect(todayStats()).toMatchObject({ income: 10000, expense: 30000 });
+});
+test("credit card adjustment uses the displayed negative balance", async () => {
+  const bank = await create({ name: "테스트은행", kind: "bank" });
+  const card = await create({
+    name: "샘플카드",
+    kind: "credit_card",
+    linked_asset_id: bank.id,
+    opening_balance: 50000,
+  });
+  const response = await adjust(card.id, { balance: -80000, record_as: "expense" });
+  expect((await response.json()).transaction).toMatchObject({ type: "expense", amount: 30000, asset_id: card.id });
+  expect(await balanceOf(card.id)).toBe(-80000);
+});
+test("adjustment rejects no difference and a type against its direction without writing", async () => {
+  const bank = await create({ name: "테스트은행", kind: "bank", opening_balance: 100000 });
+  for (const body of [
+    { balance: 100000 },
+    { balance: 90000, record_as: "income" },
+    { balance: 110000, record_as: "expense" },
+  ]) {
+    const response = await adjust(bank.id, body);
+    expect(response.status).toBe(400);
+    expect((await response.json()).error.code).toBe("invalid_adjustment");
+  }
+  expect(db.query("SELECT count(*) AS n FROM transactions").get()).toEqual({ n: 0 });
+  expect(await balanceOf(bank.id)).toBe(100000);
 });
 test("list items excludes hidden and include_hidden restores them", async () => {
   const hidden = await create({ name: "숨김은행", kind: "bank", hidden: true });

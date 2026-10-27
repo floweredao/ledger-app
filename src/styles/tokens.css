@@ -23,6 +23,7 @@
   --text: #141a24;
   --text-2: #48515b;
   --text-3: #606a74;
+  --text-outside: var(--text-3); /* dates outside the viewed period; no opacity, so AA holds on every surface */
   --border: rgb(20 26 36 / 10%);
   --border-strong: rgb(20 26 36 / 20%);
   --border-input: #7d8691;
@@ -56,9 +57,10 @@
   --cat-12: #687686; /* slate */
   --cat-glyph: #ffffff;
 
-  --toast-bg: var(--text);
-  --toast-text: var(--bg);
-  --toast-action: #70a6f5;
+  /* Toast material (DESIGN.md Elevation): translucent surface under a blur, opaque fallback for Reduce Transparency. */
+  --toast-material: rgb(255 255 255 / 80%);
+  --toast-solid: var(--surface);
+  --toast-action: var(--accent);
 
   --shadow-1: 0 1px 2px rgb(20 26 36 / 6%);
   --shadow-2: 0 8px 24px rgb(20 26 36 / 12%), 0 2px 6px rgb(20 26 36 / 6%);
@@ -76,6 +78,7 @@
   --leading-normal: 1.5;
   --tracking-display: -0.02em;
   --tracking-title: -0.01em;
+  --tracking-compact: -0.04em; /* compact amounts in calendar day cells */
   --weight-regular: 400;
   --weight-medium: 500;
   --weight-semibold: 600;
@@ -167,7 +170,8 @@
     --cat-11: #bf5da2;
     --cat-12: #798898;
 
-    --toast-action: #2769c6;
+    --toast-material: rgb(42 47 56 / 82%);
+    --toast-solid: #2a2f38;
 
     --shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow-2: 0 8px 24px rgb(0 0 0 / 50%), 0 2px 6px rgb(0 0 0 / 40%);
@@ -214,7 +218,8 @@
   --cat-11: #bf5da2;
   --cat-12: #798898;
 
-  --toast-action: #2769c6;
+  --toast-material: rgb(42 47 56 / 82%);
+  --toast-solid: #2a2f38;
 
   --shadow-1: 0 1px 2px rgb(0 0 0 / 40%);
   --shadow-2: 0 8px 24px rgb(0 0 0 / 50%), 0 2px 6px rgb(0 0 0 / 40%);

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { cleanup, render, screen } from "@testing-library/react";
-import { clearMemoryCache } from "../../api/hooks";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import type { BudgetStatus } from "../../../shared/schema";
+import { clearMemoryCache, invalidate } from "../../api/hooks";
 import BudgetView from "./BudgetView";
 
 const realFetch = globalThis.fetch;
@@ -63,6 +64,35 @@ afterEach(() => {
 });
 
 describe("BudgetView", () => {
+  test("keeps row order and focus when a background refresh flips usage", async () => {
+    const first = status.categories[0];
+    const second = status.categories[1];
+    if (!first || !second) throw new Error("Missing synthetic categories");
+    let categories: BudgetStatus["categories"] = [first, { ...second, budget: 40_000, pct: 50 }];
+    globalThis.fetch = Object.assign(async () => Response.json({ ...status, categories }), {
+      preconnect: realFetch.preconnect,
+    });
+    render(<BudgetView />);
+    await screen.findByText("식비");
+    const names = () => screen.getAllByTestId("budget-category-name").map((node) => node.textContent);
+    const focused = screen.getByRole("button", { name: "식비 예산 수정" });
+    focused.focus();
+    categories = [
+      { ...first, pct: 25, spent: 10_000 },
+      { ...second, budget: 40_000, pct: 150 },
+    ];
+    await act(async () => {
+      invalidate("budgets");
+    });
+    await screen.findByText("150%");
+    expect(names()).toEqual(["식비", "교통"]);
+    expect(document.activeElement).toBe(focused);
+    cleanup();
+    clearMemoryCache();
+    render(<BudgetView />);
+    await screen.findByText("150%");
+    expect(names()).toEqual(["교통", "식비"]);
+  });
   test("shows the over-budget amount in text and lists unbudgeted spending", async () => {
     render(<BudgetView />);
 

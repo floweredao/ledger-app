@@ -4,6 +4,7 @@ import { clearCache } from "../../api/cache";
 import { clearMemoryCache } from "../../api/hooks";
 import { markNetwork, setCsrfToken } from "../../api/transport";
 import { AppShell } from "../../components/AppShell";
+import { getLocale, setLanguagePreference, setLocale } from "../../i18n";
 import Preferences from "./Preferences";
 
 const realFetch = globalThis.fetch;
@@ -62,6 +63,8 @@ afterEach(() => {
   clearMemoryCache();
   globalThis.fetch = realFetch;
   document.documentElement.removeAttribute("data-theme");
+  setLanguagePreference("system");
+  setLocale("ko");
 });
 
 describe("Preferences", () => {
@@ -71,7 +74,7 @@ describe("Preferences", () => {
   });
   test("shows loading state initially", () => {
     render(<Preferences />);
-    expect(screen.getByText(/로드 중/i)).toBeTruthy();
+    expect(screen.getByRole("status", { name: "환경 설정 불러오는 중" })).toBeTruthy();
   });
   test("component exports as default", () => {
     expect(typeof Preferences).toBe("function");
@@ -104,6 +107,27 @@ describe("Preferences", () => {
     });
     expect(writes).toHaveLength(1);
     expect(writes[0]).toMatchObject({ ledger_view: "monthly" });
+  });
+  test("saves the chosen screen language", async () => {
+    render(<Preferences />);
+    await act(async () => {
+      await Promise.all([settingsRead.promise, assetsRead.promise]);
+    });
+    expect(screen.getByRole("option", { name: "English" })).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("언어"), { target: { value: "en" } });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "저장" }));
+      await settingsWrite.promise;
+    });
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({ language: "en" });
+  });
+  test("the shell applies the saved language over the system language", async () => {
+    Object.assign(settings, { language: "en" });
+    const applied = waitFor(() => expect(getLocale()).toBe("en"));
+    render(<AppShell>홈 화면</AppShell>);
+    await applied;
+    expect(localStorage.getItem("ledger:language")).toBe("en");
   });
   test("a blank month start is rejected without writing settings", async () => {
     render(<Preferences />);

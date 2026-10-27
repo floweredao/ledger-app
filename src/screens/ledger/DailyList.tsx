@@ -1,21 +1,24 @@
+import { messages, useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
+import { ledgerMessages } from "./messages";
 import "./daily.css";
 import { RefreshCw } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { kstDate } from "../../../shared/dates";
-import { formatSigned } from "../../../shared/money";
 import type { Asset, Category, CategoryNode, Transaction } from "../../../shared/schema";
 import { api, paths } from "../../api/client";
 import { invalidate, useApi } from "../../api/hooks";
 import { isPendingTransaction } from "../../api/outbox";
 import { openEntry } from "../../app/entry-bridge";
 import { calendarMonthFilter } from "../../app/periods";
-import { rowCategoryLabel, TRANSFER_ICON, transactionTitle, transferRoute } from "../../app/transaction-label";
+import { rowCategoryLabel, TRANSFER_ICON, transferRoute } from "../../app/transaction-label";
 import { AmountText } from "../../components/AmountText";
 import { Button } from "../../components/Button";
 import { CategoryIcon } from "../../components/CategoryIcon";
 import { EmptyState } from "../../components/EmptyState";
 import { Badge, ListRow } from "../../components/ListRow";
 import { Skeleton } from "../../components/Skeleton";
+import { formatNumber, formatSigned, formatWeekday } from "../../i18n/format";
 import { useSelectedMonth } from "../../router";
 
 type TransactionResponse = { readonly items: readonly Transaction[] };
@@ -30,8 +33,7 @@ type DayGroup = {
 const AUTOMATIC_SOURCES = new Set(["kakaobank_excel", "kakaobank_sms", "import", "recurring", "card_payment"]);
 
 function dateLabel(date: string): string {
-  const value = new Date(`${date}T12:00:00+09:00`);
-  return `${Number(date.slice(8, 10))}일 ${new Intl.DateTimeFormat("ko-KR", { weekday: "long", timeZone: "Asia/Seoul" }).format(value)}`;
+  return messages(ledgerMessages).dayLabel(Number(date.slice(8, 10)), formatWeekday(date));
 }
 
 function groupTransactions(items: readonly Transaction[]): readonly DayGroup[] {
@@ -64,22 +66,32 @@ function DaySection({
   readonly categories: ReadonlyMap<string, Category>;
   readonly assets: ReadonlyMap<string, string>;
 }) {
+  const m = useMessages(ledgerMessages);
+  const c = useMessages(common);
   return (
     <section className="daily-day" aria-label={dateLabel(group.date)}>
       <header className="daily-day-header">
         <h2>{dateLabel(group.date)}</h2>
         <div className="daily-day-totals">
-          <span>수입 {formatSigned("income", group.income)}</span>
-          <span>지출 {formatSigned("expense", group.expense)}</span>
+          <span>
+            {c.income} {formatSigned("income", group.income)}
+          </span>
+          <span>
+            {c.expense} {formatSigned("expense", group.expense)}
+          </span>
         </div>
       </header>
       <div className="daily-day-rows">
         {group.transactions.map((transaction) => {
           const category = transaction.category_id ? categories.get(transaction.category_id) : undefined;
-          const title = transactionTitle(transaction, category?.name);
+          const title = transaction.merchant.trim()
+            ? transaction.merchant
+            : transaction.type === "transfer"
+              ? c.transfer
+              : (category?.name ?? m.noCategory);
           const foreignAmount =
             transaction.currency !== "KRW" && transaction.foreign_amount !== null
-              ? `${transaction.type === "expense" && !transaction.is_refund ? "-" : transaction.type === "transfer" ? "" : "+"}${transaction.currency} ${transaction.foreign_amount.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}`
+              ? `${transaction.type === "expense" && !transaction.is_refund ? "-" : transaction.type === "transfer" ? "" : "+"}${transaction.currency} ${formatNumber(transaction.foreign_amount, { maximumFractionDigits: 4 })}`
               : null;
           const assetName = transaction.asset_id ? assets.get(transaction.asset_id) : undefined;
           const route = transferRoute(transaction, (id) => assets.get(id));
@@ -89,15 +101,15 @@ function DaySection({
             .join(" · ");
           const badges = (
             <span className="daily-badges">
-              {isPendingTransaction(transaction.id) ? <Badge tone="accent">대기</Badge> : null}
+              {isPendingTransaction(transaction.id) ? <Badge tone="accent">{m.pending}</Badge> : null}
               {AUTOMATIC_SOURCES.has(transaction.source) ? (
                 <Badge>
                   <span className="daily-source-dot" aria-hidden="true" />
-                  자동
+                  {m.automatic}
                 </Badge>
               ) : null}
-              {transaction.is_refund ? <Badge tone="accent">환불</Badge> : null}
-              {transaction.krw_status === "pending" ? <Badge tone="warning">원화 미확정</Badge> : null}
+              {transaction.is_refund ? <Badge tone="accent">{c.refund}</Badge> : null}
+              {transaction.krw_status === "pending" ? <Badge tone="warning">{m.pendingKrw}</Badge> : null}
             </span>
           );
           return (
@@ -138,6 +150,9 @@ function DaySection({
 }
 
 export default function DailyList() {
+  const m = useMessages(ledgerMessages);
+  const c = useMessages(common);
+
   const [month] = useSelectedMonth();
   const range = calendarMonthFilter(month);
   const transactionKey = paths.transactions({ from: range.from, to: range.to, limit: 1000 });
@@ -218,16 +233,16 @@ export default function DailyList() {
   }, [listReady]);
 
   if (transactions.data === undefined && transactions.loading) {
-    return <Skeleton rows={5} label="이번 달 거래 불러오는 중" />;
+    return <Skeleton rows={5} label={m.loadingMonth} />;
   }
   if (transactions.data === undefined) {
     return (
       <EmptyState
         tone="error"
-        title="거래를 불러오지 못했어요"
+        title={m.loadTransactionsFailed}
         action={
           <Button size="sm" onClick={transactions.reload}>
-            다시 시도
+            {c.retry}
           </Button>
         }
       />
@@ -238,25 +253,25 @@ export default function DailyList() {
       <div className="daily-empty" ref={rootRef}>
         {syncError ? (
           <p className="daily-sync-error" role="alert">
-            동기화를 완료하지 못했어요. 다시 시도해 주세요.
+            {m.syncFailed}
           </p>
         ) : null}
         {pulling ? (
           <p className="daily-pull-status" aria-live="polite">
-            놓으면 동기화해요
+            {m.releaseToSync}
           </p>
         ) : null}
         <EmptyState
-          title="이번 달 기록이 없어요"
-          description="첫 기록을 남기거나 은행 내역을 동기화해 보세요."
+          title={m.emptyMonth}
+          description={m.emptyMonthHint}
           action={
             <Button variant="primary" onClick={() => openEntry({ date: range.from })}>
-              기록하기
+              {c.record}
             </Button>
           }
         />
         <Button icon={RefreshCw} disabled={syncing} onClick={() => void sync()}>
-          {syncing ? "동기화 중" : "지금 동기화"}
+          {syncing ? m.syncing : c.syncNow}
         </Button>
       </div>
     );
@@ -266,23 +281,23 @@ export default function DailyList() {
     <div className="daily-list" ref={rootRef}>
       {syncError ? (
         <p className="daily-sync-error" role="alert">
-          동기화를 완료하지 못했어요. 다시 시도해 주세요.
+          {m.syncFailed}
         </p>
       ) : null}
       {pulling ? (
         <p className="daily-pull-status" aria-live="polite">
-          놓으면 동기화해요
+          {m.releaseToSync}
         </p>
       ) : null}
       <div className="daily-list-toolbar">
-        <p>{transactions.data.items.length}건</p>
+        <p>{c.count(transactions.data.items.length)}</p>
         <Button size="sm" icon={RefreshCw} disabled={syncing} onClick={() => void sync()}>
-          {syncing ? "동기화 중" : "지금 동기화"}
+          {syncing ? m.syncing : c.syncNow}
         </Button>
       </div>
       {categories.error ? (
         <p className="daily-category-warning" role="status">
-          분류 이름을 불러오지 못했어요.
+          {m.loadCategoriesFailed}
         </p>
       ) : null}
       {groups.map((group) => (
@@ -290,7 +305,7 @@ export default function DailyList() {
       ))}
       {transactions.offline ? (
         <p className="daily-offline" role="status">
-          오프라인 저장 내역을 보고 있어요.
+          {m.offlineRecords}
         </p>
       ) : null}
     </div>

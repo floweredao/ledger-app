@@ -19,7 +19,10 @@ import { EmptyState } from "../../components/EmptyState";
 import { Sheet } from "../../components/Sheet";
 import { Skeleton } from "../../components/Skeleton";
 import { toast } from "../../components/Toast";
+import { useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
 import { applyTemplate, type EntryDraft, fromTransaction } from "./form";
+import { entryMessages } from "./messages";
 import { type EntryData, refreshLedger, TransactionSheet } from "./TransactionSheet";
 
 const RECENT = paths.transactions({ limit: 100 });
@@ -50,6 +53,8 @@ function initialDraft(request: EntryRequest, data: EntryData, settings: Settings
 }
 
 export default function EntryHost() {
+  const t = useMessages(entryMessages);
+  const c = useMessages(common);
   const { request, close } = useEntryRequest();
   const open = request !== null;
   const editId = request?.id ?? null;
@@ -64,13 +69,17 @@ export default function EntryHost() {
 
   const [session, setSession] = useState(0);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [freshSession, setFreshSession] = useState(-1);
   const dirtyRef = useRef(false);
   const saveRef = useRef<(() => void) | null>(null);
+  const lastFieldRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (request === null) return;
     dirtyRef.current = false;
+    lastFieldRef.current = null;
+    setConfirmDiscard(false);
     setSession((n) => n + 1);
   }, [request]);
 
@@ -83,7 +92,12 @@ export default function EntryHost() {
     setConfirmDiscard(false);
     close();
   }, [close]);
-  const requestClose = () => (dirtyRef.current ? setConfirmDiscard(true) : finish());
+  const requestClose = () => {
+    if (!dirtyRef.current) return finish();
+    // Capture the edited field as the confirmation's return target, not the close button.
+    lastFieldRef.current?.focus();
+    setConfirmDiscard(true);
+  };
   const onDirtyChange = useCallback((dirty: boolean) => {
     dirtyRef.current = dirty;
   }, []);
@@ -101,24 +115,30 @@ export default function EntryHost() {
   const original = editId && listReady ? (detail.data ?? null) : null;
   const ready = categories.data && assets.data && settings.data && listReady;
 
-  const remove = async (id: string) => {
+  const remove = async (record: Transaction) => {
+    const { id } = record;
+    const category = categories.data?.items
+      .flatMap(({ children, ...parent }) => [parent, ...children])
+      .find((item) => item.id === record.category_id);
+    const name = record.merchant.trim() || category?.name || c.uncategorized;
     try {
       await api.deleteTransaction(id);
     } catch (error) {
       console.warn("delete failed", error);
-      toast({ message: "삭제하지 못했어요. 다시 시도해 주세요." });
+      toast({ message: t.deleteFailed, tone: "error" });
       return;
     }
     refreshLedger();
     finish();
     toast({
-      message: "삭제했어요",
+      message: t.deleted(name),
       action: {
-        label: "실행 취소",
+        label: c.undo,
+        accessibleName: t.undoDelete(name),
         onAction: () => {
           api.restoreTransaction(id).then(refreshLedger, (error: unknown) => {
             console.warn("restore failed", error);
-            toast({ message: "되돌리지 못했어요" });
+            toast({ message: t.restoreFailed, tone: "error" });
           });
         },
       },
@@ -127,20 +147,20 @@ export default function EntryHost() {
 
   let body: ReactNode;
   if (missing) {
-    body = <EmptyState icon={SearchX} title="이 기록을 찾을 수 없어요" />;
+    body = <EmptyState icon={SearchX} title={t.recordMissing} />;
   } else if (failed) {
     body = (
       <EmptyState
         tone="error"
         icon={CircleAlert}
-        title="기록에 필요한 정보를 불러오지 못했어요"
-        action={<Button onClick={retry}>다시 시도</Button>}
+        title={t.metadataFailed}
+        action={<Button onClick={retry}>{c.retry}</Button>}
       />
     );
   } else if (!request || !categories.data || !assets.data || !settings.data || !listReady) {
-    body = <Skeleton rows={4} label="기록 화면을 여는 중" />;
+    body = <Skeleton rows={4} label={t.opening} />;
   } else if (editId && !original) {
-    body = <EmptyState icon={SearchX} title="이 기록을 찾을 수 없어요" />;
+    body = <EmptyState icon={SearchX} title={t.recordMissing} />;
   } else {
     const data: EntryData = {
       categories: categories.data.items.flatMap(({ children, ...parent }) => [parent, ...children]),
@@ -155,7 +175,7 @@ export default function EntryHost() {
         data={data}
         initial={initialDraft(request, data, settings.data, original)}
         original={original}
-        controls={{ saveRef, onDirtyChange, onSaved: finish }}
+        controls={{ saveRef, onDirtyChange, onSavingChange: setSaving, onSaved: finish }}
       />
     );
   }
@@ -164,12 +184,18 @@ export default function EntryHost() {
   const footer = canSave ? (
     <>
       {original ? (
-        <Button variant="danger" onClick={() => void remove(original.id)}>
-          삭제
+        <Button variant="danger" disabled={saving} onClick={() => void remove(original)}>
+          {c.delete}
         </Button>
       ) : null}
-      <Button variant="primary" block={!original} onClick={() => saveRef.current?.()}>
-        저장
+      <Button
+        variant="primary"
+        block={!original}
+        disabled={saving}
+        aria-busy={saving}
+        onClick={() => saveRef.current?.()}
+      >
+        {saving ? c.saving : c.save}
       </Button>
     </>
   ) : undefined;
@@ -178,17 +204,31 @@ export default function EntryHost() {
     <>
       <Sheet
         open={open}
+        suspended={confirmDiscard}
         onClose={requestClose}
-        title={editId ? "기록 수정" : "기록하기"}
+        title={editId ? t.editRecord : c.record}
         {...(footer ? { footer } : {})}
       >
-        {body}
+        <div
+          onFocusCapture={(event) => {
+            const target = event.target;
+            if (
+              target instanceof HTMLInputElement ||
+              target instanceof HTMLTextAreaElement ||
+              target instanceof HTMLSelectElement
+            ) {
+              lastFieldRef.current = target;
+            }
+          }}
+        >
+          {body}
+        </div>
       </Sheet>
       <ConfirmDialog
         open={confirmDiscard}
-        title="작성 중인 내용을 버릴까요?"
-        confirmLabel="버리기"
-        cancelLabel="계속 작성"
+        title={t.discardTitle}
+        confirmLabel={t.discard}
+        cancelLabel={t.keepWriting}
         destructive
         onConfirm={finish}
         onCancel={() => setConfirmDiscard(false)}

@@ -26,7 +26,7 @@ export function SegmentedControl<T extends string>({ label, options, value, onCh
             checked={option.value === value}
             onChange={() => onChange(option.value)}
           />
-          <span>{option.label}</span>
+          <span style={{ whiteSpace: "nowrap" }}>{option.label}</span>
         </label>
       ))}
     </fieldset>

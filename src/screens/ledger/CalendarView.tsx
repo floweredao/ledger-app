@@ -1,6 +1,5 @@
 import { type CSSProperties, type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react";
-import { addDays, daysInMonth, formatDisplayDate, kstDate } from "../../../shared/dates";
-import { compactWon, formatSigned } from "../../../shared/money";
+import { addDays, daysInMonth, kstDate } from "../../../shared/dates";
 import type { CategoryNode, StatsCalendar, TransactionList } from "../../../shared/schema";
 import { paths } from "../../api/client";
 import { useApi } from "../../api/hooks";
@@ -13,21 +12,28 @@ import { CategoryIcon } from "../../components/CategoryIcon";
 import { EmptyState } from "../../components/EmptyState";
 import { Badge, ListRow } from "../../components/ListRow";
 import { Skeleton } from "../../components/Skeleton";
-import { useSelectedMonth } from "../../router";
+import { getLocale, useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
+import {
+  compactWon,
+  formatDisplayDate,
+  formatFullDate,
+  formatNumber,
+  formatSigned,
+  formatWeekday,
+} from "../../i18n/format";
+import { useSelectedDate, useSelectedMonth } from "../../router";
+import { calendarMessages } from "./calendar-messages";
 import "./calendar.css";
 
-const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"] as const;
-const KIND_LABEL = { expense: "지출", income: "수입", transfer: "이체", refund: "환불" } as const;
+/** 2026-10-04 is a Sunday; the grid starts on Sunday. */
+const WEEK = Array.from({ length: 7 }, (_, index) => addDays("2026-10-04", index));
 
 function firstDate(month: string): string {
   return `${month}-01`;
 }
 
-function dayLabel(date: string): string {
-  const [, year, month, day] = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date) ?? [];
-  const weekday = WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()];
-  return `${year}년 ${Number(month)}월 ${Number(day)}일 ${weekday}요일`;
-}
+const dayLabel = formatFullDate;
 
 function makeGrid(month: string): readonly string[] {
   const first = firstDate(month);
@@ -38,9 +44,36 @@ function makeGrid(month: string): readonly string[] {
   return Array.from({ length: rows * 7 }, (_, index) => addDays(start, index));
 }
 
+const oneDecimal = (n: number) => String(Math.round(n * 10) / 10);
+
+/**
+ * A phone-width day cell fits a sign, four narrow glyphs and one unit at 12px, so a total rounds to that budget:
+ * 9,999 · 1.2만 · 999만 · 1천만–9천만 · 1억–9.9억 · 10억–999억 · 1천억–9천억 · 1조–9.9조. The full amount stays in the
+ * cell's accessible name and in the selected-day detail.
+ */
+/** English keeps the same budget: 9,999 · 12K · 999K · 1.2M · 123M · 1.2B · 123B · 1.2T. */
+function calendarCompactEn(abs: number): string {
+  if (abs < 10_000) return compactWon(abs);
+  if (abs < 999_500) return `${Math.round(abs / 1e3)}K`;
+  if (abs < 9_950_000) return `${oneDecimal(abs / 1e6)}M`;
+  if (abs < 999_500_000) return `${Math.round(abs / 1e6)}M`;
+  if (abs < 9_950_000_000) return `${oneDecimal(abs / 1e9)}B`;
+  if (abs < 999_500_000_000) return `${Math.round(abs / 1e9)}B`;
+  return `${oneDecimal(abs / 1e12)}T`;
+}
+
+function calendarCompact(abs: number): string {
+  if (getLocale() === "en") return calendarCompactEn(abs);
+  if (abs < 9_995_000) return compactWon(abs);
+  if (abs < 95_000_000) return `${Math.round(abs / 1e7)}천만`;
+  if (abs < 995_000_000) return `${oneDecimal(abs / 1e8)}억`;
+  if (abs < 99_950_000_000) return `${Math.round(abs / 1e8)}억`;
+  if (abs < 950_000_000_000) return `${Math.round(abs / 1e11)}천억`;
+  return `${oneDecimal(abs / 1e12)}조`;
+}
+
 function signedCompact(kind: "income" | "expense", amount: number): string {
-  const sign = kind === "income" ? "+" : "-";
-  return `${sign}${compactWon(amount)}`;
+  return `${kind === "income" ? "+" : "-"}${calendarCompact(Math.abs(amount))}`;
 }
 
 /** Approximate width in em (tabular digits, narrow separators, wide 만/억) so CSS can fit the amount on one line. */
@@ -53,40 +86,42 @@ function amountFit(text: string): CSSProperties {
 function DayTransactions({ date }: { readonly date: string }) {
   const transactions = useApi<TransactionList>(paths.transactions({ from: date, to: date, limit: 1000 }));
   const categories = useApi<{ readonly items: readonly CategoryNode[] }>(paths.categories({ include_hidden: true }));
+  const m = useMessages(calendarMessages);
+  const c = useMessages(common);
   const categoryMap = new Map(
     (categories.data?.items ?? [])
       .flatMap((category) => [category, ...(category.children ?? [])])
       .map((category) => [category.id, category]),
   );
   if (transactions.data === undefined && transactions.loading) {
-    return <Skeleton label="날짜별 거래 불러오는 중" />;
+    return <Skeleton label={m.dayLoading} />;
   }
   if (!transactions.data && transactions.error) {
     return (
       <EmptyState
         tone="error"
-        title="거래를 불러오지 못했어요"
+        title={m.dayLoadFailed}
         action={
           <Button size="sm" onClick={transactions.reload}>
-            다시 시도
+            {c.retry}
           </Button>
         }
       />
     );
   }
   const rows = transactions.data?.items ?? [];
-  if (rows.length === 0) return <p className="calendar-empty-day">이 날짜에 기록이 없어요</p>;
+  if (rows.length === 0) return <p className="calendar-empty-day">{m.emptyDay}</p>;
   return (
     <ul className="calendar-transactions">
       {rows.map((transaction) => {
         const foreignAmount =
           transaction.currency !== "KRW" && transaction.foreign_amount !== null
-            ? `${transaction.type === "expense" && !transaction.is_refund ? "-" : transaction.type === "transfer" ? "" : "+"}${transaction.currency} ${transaction.foreign_amount.toLocaleString("ko-KR", { maximumFractionDigits: 4 })}`
+            ? `${transaction.type === "expense" && !transaction.is_refund ? "-" : transaction.type === "transfer" ? "" : "+"}${transaction.currency} ${formatNumber(transaction.foreign_amount, { maximumFractionDigits: 4 })}`
             : null;
         const kind = transaction.type === "expense" && transaction.is_refund ? "refund" : transaction.type;
         const category = transaction.category_id ? categoryMap.get(transaction.category_id) : undefined;
         const title =
-          transaction.merchant || transaction.memo || (transaction.type === "transfer" ? "이체" : "이름 없는 거래");
+          transaction.merchant || transaction.memo || (transaction.type === "transfer" ? c.transfer : m.unnamed);
         const subtitle = [
           rowCategoryLabel(transaction.category_id, (id) => categoryMap.get(id), title),
           transaction.merchant && transaction.memo ? transaction.memo : undefined,
@@ -107,9 +142,9 @@ function DayTransactions({ date }: { readonly date: string }) {
               badges={
                 <span className="calendar-badges">
                   <span className="calendar-kind" data-kind={kind}>
-                    {KIND_LABEL[kind]}
+                    {c[kind]}
                   </span>
-                  {transaction.krw_status === "pending" ? <Badge tone="warning">원화 미확정</Badge> : null}
+                  {transaction.krw_status === "pending" ? <Badge tone="warning">{m.krwPending}</Badge> : null}
                 </span>
               }
               trailing={
@@ -139,11 +174,11 @@ function DayTransactions({ date }: { readonly date: string }) {
 }
 
 export default function CalendarView() {
-  const [month, setMonth] = useSelectedMonth();
+  const m = useMessages(calendarMessages);
+  const c = useMessages(common);
+  const [month] = useSelectedMonth();
   const currentDate = kstDate();
-  const [selectedDate, setSelectedDate] = useState(() =>
-    currentDate.startsWith(month) ? currentDate : firstDate(month),
-  );
+  const [selectedDate, setSelectedDate] = useSelectedDate();
   const [keyboardFocusDate, setKeyboardFocusDate] = useState<string | null>(null);
   const dayPanelRef = useRef<HTMLElement>(null);
   const calendar = useApi<StatsCalendar>(paths.statsCalendar(month));
@@ -152,13 +187,6 @@ export default function CalendarView() {
     () => new Map((calendar.data?.days ?? []).map((day) => [day.date, day])),
     [calendar.data],
   );
-  const isTodayInMonth = currentDate.startsWith(month);
-
-  useEffect(() => {
-    if (!selectedDate.startsWith(month)) {
-      setSelectedDate(isTodayInMonth ? currentDate : firstDate(month));
-    }
-  }, [currentDate, isTodayInMonth, month, selectedDate]);
 
   useEffect(() => {
     if (!keyboardFocusDate || !gridDates.includes(keyboardFocusDate)) return;
@@ -166,10 +194,7 @@ export default function CalendarView() {
     setKeyboardFocusDate(null);
   }, [gridDates, keyboardFocusDate]);
 
-  const selectDate = (date: string) => {
-    if (!date.startsWith(month)) setMonth(date.slice(0, 7));
-    setSelectedDate(date);
-  };
+  const selectDate = setSelectedDate;
 
   /** Tapping the already selected day jumps to its records; html scroll-padding keeps the heading clear of the top bar. */
   const revealDayPanel = () => {
@@ -192,30 +217,30 @@ export default function CalendarView() {
   };
 
   return (
-    <section className="calendar-view" aria-label={`${formatMonth(month)} 달력`}>
+    <section className="calendar-view" aria-label={m.calendarLabel(formatMonth(month))}>
       <div className="calendar-workspace">
         <div className="calendar-main">
           {calendar.data === undefined && calendar.loading ? (
-            <Skeleton variant="block" label="달력 불러오는 중" />
+            <Skeleton variant="block" label={m.calendarLoading} />
           ) : calendar.data === undefined && calendar.error ? (
             <EmptyState
               tone="error"
-              title="달력을 불러오지 못했어요"
+              title={m.calendarLoadFailed}
               action={
                 <Button size="sm" onClick={calendar.reload}>
-                  다시 시도
+                  {c.retry}
                 </Button>
               }
             />
           ) : (
             <>
               <div className="calendar-weekdays" aria-hidden="true">
-                {WEEKDAYS.map((weekday) => (
-                  <span key={weekday}>{weekday}</span>
+                {WEEK.map((date) => (
+                  <span key={date}>{formatWeekday(date, "short")}</span>
                 ))}
               </div>
               <fieldset className="calendar-grid">
-                <legend className="sr-only">날짜 선택</legend>
+                <legend className="sr-only">{m.pickDate}</legend>
                 {gridDates.map((date) => {
                   const day = totalsByDate.get(date);
                   const inMonth = date.startsWith(month);
@@ -223,8 +248,8 @@ export default function CalendarView() {
                   const selected = date === selectedDate;
                   const accessibleLabel = [
                     dayLabel(date),
-                    day && day.income > 0 ? `수입 ${formatSigned("income", day.income)}` : "",
-                    day && day.expense > 0 ? `지출 ${formatSigned("expense", day.expense)}` : "",
+                    day && day.income > 0 ? `${c.income} ${formatSigned("income", day.income)}` : "",
+                    day && day.expense > 0 ? `${c.expense} ${formatSigned("expense", day.expense)}` : "",
                   ]
                     .filter(Boolean)
                     .join(", ");
@@ -269,14 +294,14 @@ export default function CalendarView() {
             </>
           )}
         </div>
-        <aside ref={dayPanelRef} className="calendar-day-panel" aria-label={`${dayLabel(selectedDate)} 내역`}>
+        <aside ref={dayPanelRef} className="calendar-day-panel" aria-label={m.dayRecords(dayLabel(selectedDate))}>
           <div className="calendar-day-heading">
             <div>
               <h2 className="section-title">{formatDisplayDate(selectedDate)}</h2>
-              <p className="calendar-day-summary">{totalsByDate.get(selectedDate)?.count ?? 0}건의 기록</p>
+              <p className="calendar-day-summary">{m.recordCount(totalsByDate.get(selectedDate)?.count ?? 0)}</p>
             </div>
             <Button variant="primary" onClick={() => openEntry({ date: selectedDate })}>
-              이 날짜에 기록
+              {m.addOnDate}
             </Button>
           </div>
           <DayTransactions date={selectedDate} />

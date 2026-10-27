@@ -1,6 +1,5 @@
 import { type MutableRefObject, useEffect, useId, useRef, useState } from "react";
 import { merchantKey } from "../../../shared/merchant";
-import { formatWon } from "../../../shared/money";
 import type {
   Asset,
   Category,
@@ -17,6 +16,9 @@ import { Field, Input } from "../../components/Field";
 import { Badge } from "../../components/ListRow";
 import { SegmentedControl } from "../../components/SegmentedControl";
 import { toast } from "../../components/Toast";
+import { messages, useMessages } from "../../i18n";
+import { common } from "../../i18n/common";
+import { formatNumber, formatWon } from "../../i18n/format";
 import { AssetPicker } from "./AssetPicker";
 import { CategoryPicker } from "./CategoryPicker";
 import { DateTimeField } from "./DateTimeField";
@@ -39,6 +41,7 @@ import {
   validate,
 } from "./form";
 import { Keypad } from "./Keypad";
+import { entryMessages } from "./messages";
 import { useEntryKeyboard } from "./useEntryKeyboard";
 import "./entry.css";
 
@@ -58,11 +61,11 @@ type Props = {
   readonly controls: {
     readonly saveRef: MutableRefObject<(() => void) | null>;
     readonly onDirtyChange: (dirty: boolean) => void;
+    readonly onSavingChange: (saving: boolean) => void;
     readonly onSaved: () => void;
   };
 };
 
-const TYPE_OPTIONS = (["expense", "income", "transfer"] as const).map((value) => ({ value, label: TYPE_LABEL[value] }));
 const LEDGER_PREFIXES = ["transactions", "stats", "budgets", "assets", "merchant-rules"] as const;
 
 export function refreshLedger(): void {
@@ -70,30 +73,33 @@ export function refreshLedger(): void {
 }
 
 function saveErrorMessage(error: unknown): string {
-  if (isNetworkError(error)) return "서버에 연결하지 못했어요. 연결을 확인하고 다시 시도해 주세요.";
-  if (isApiError(error) && error.status === 400) return "저장하지 못했어요. 입력한 내용을 확인해 주세요.";
-  return "저장하지 못했어요. 잠시 후 다시 시도해 주세요.";
+  const t = messages(entryMessages);
+  if (isNetworkError(error)) return t.networkSaveFailed;
+  if (isApiError(error) && error.status === 400) return t.invalidSave;
+  return t.saveFailed;
 }
 
 /** Read-only copy of what the bank import first recorded; it stays put however the title or memo is edited. */
 function SourceDetailSection({ detail, labelId }: { readonly detail: SourceDetail; readonly labelId: string }) {
+  const t = useMessages(entryMessages);
+  const c = useMessages(common);
   const sign = detail.amount < 0 ? "-" : "+";
   const amount =
     detail.currency === null
       ? `${sign}${formatWon(Math.abs(detail.amount))}`
-      : `${sign}${detail.currency} ${Math.abs(detail.amount).toLocaleString("ko-KR", { maximumFractionDigits: 4 })}`;
+      : `${sign}${detail.currency} ${formatNumber(Math.abs(detail.amount), { maximumFractionDigits: 4 })}`;
   const rows: readonly (readonly [string, string, boolean])[] = [
-    ["거래처", detail.counterparty || "없음", false],
-    ["종류", detail.kind || "없음", false],
-    ["금액", amount, true],
-    ["계좌", detail.account, true],
-    ...(detail.balance === null ? [] : [["잔액", formatWon(detail.balance), true] as const]),
-    ["받은 시각", detail.at.slice(0, 16).replace("T", " "), true],
+    [t.counterparty, detail.counterparty || c.none, false],
+    [t.kind, detail.kind || c.none, false],
+    [t.amount, amount, true],
+    [t.account, detail.account, true],
+    ...(detail.balance === null ? [] : [[t.balance, formatWon(detail.balance), true] as const]),
+    [t.receivedAt, detail.at.slice(0, 16).replace("T", " "), true],
   ];
   return (
     <section className="entry-section entry-source-detail" aria-labelledby={labelId}>
       <h3 className="entry-label" id={labelId}>
-        자동 저장 원래 내용
+        {t.originalDetails}
       </h3>
       <dl className="entry-source-list">
         {rows.map(([label, value, numeric]) => (
@@ -103,12 +109,18 @@ function SourceDetailSection({ detail, labelId }: { readonly detail: SourceDetai
           </div>
         ))}
       </dl>
-      <p className="entry-hint">내용이나 메모를 고쳐도 처음 자동으로 저장된 내용은 여기 그대로 남아요.</p>
+      <p className="entry-hint">{t.originalHint}</p>
     </section>
   );
 }
 
 export function TransactionSheet({ data, initial, original, controls }: Props) {
+  const t = useMessages(entryMessages);
+  const c = useMessages(common);
+  const TYPE_OPTIONS = (["expense", "income", "transfer"] as const).map((value) => ({
+    value,
+    label: TYPE_LABEL[value],
+  }));
   const ids = useId();
   const formRef = useRef<HTMLFormElement>(null);
   const busy = useRef(false);
@@ -118,7 +130,7 @@ export function TransactionSheet({ data, initial, original, controls }: Props) {
   const [applyToPast, setApplyToPast] = useState(false);
   const [textFocus, setTextFocus] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const errors = attempted ? validate(draft, original?.amount) : {};
+  const errors = attempted ? validate(draft, original ?? undefined) : {};
   const categoryOf = (id: string | null) => data.categories.find((c) => c.id === id);
   const merchants = [...new Set(data.recent.map((tx) => tx.merchant.trim()).filter(Boolean))].slice(0, 30);
   const recentCategoryIds = [...new Set(data.recent.flatMap((tx) => (tx.category_id ? [tx.category_id] : [])))];
@@ -147,8 +159,9 @@ export function TransactionSheet({ data, initial, original, controls }: Props) {
 
   const save = async (next: EntryDraft = draft) => {
     setAttempted(true);
-    if (busy.current || hasErrors(validate(next, original?.amount))) return;
+    if (busy.current || hasErrors(validate(next, original ?? undefined))) return;
     busy.current = true;
+    controls.onSavingChange(true);
     setFormError(null);
     try {
       if (original) {
@@ -156,7 +169,7 @@ export function TransactionSheet({ data, initial, original, controls }: Props) {
         if (Object.keys(patch).length > 0) await api.patchTransaction(original.id, patch);
       } else {
         const result = await api.createTransaction(toCreate(next));
-        if ("queued" in result) toast({ message: "연결되면 저장할게요" });
+        if ("queued" in result) toast({ message: t.queued });
       }
       refreshLedger();
       controls.onSaved();
@@ -164,6 +177,7 @@ export function TransactionSheet({ data, initial, original, controls }: Props) {
       setFormError(saveErrorMessage(error));
     } finally {
       busy.current = false;
+      controls.onSavingChange(false);
     }
   };
   controls.saveRef.current = () => void save();
@@ -194,14 +208,14 @@ export function TransactionSheet({ data, initial, original, controls }: Props) {
           {original && original.source !== "manual" ? (
             <Badge tone="accent">{SOURCE_LABEL[original.source]}</Badge>
           ) : null}
-          {draft.isRefund ? <Badge tone="accent">환불</Badge> : null}
+          {draft.isRefund ? <Badge tone="accent">{c.refund}</Badge> : null}
         </p>
       ) : null}
-      <SegmentedControl label="거래 종류" options={TYPE_OPTIONS} value={draft.type} onChange={setType} />
+      <SegmentedControl label={t.transactionType} options={TYPE_OPTIONS} value={draft.type} onChange={setType} />
       <div className="entry-amount-block">
         <output
           className="entry-amount num"
-          aria-label="금액"
+          aria-label={t.amount}
           aria-describedby={errors.amount ? amountErrorId : undefined}
           aria-invalid={errors.amount ? true : undefined}
           data-empty={draft.amount === "" || undefined}
@@ -226,18 +240,18 @@ export function TransactionSheet({ data, initial, original, controls }: Props) {
       {offerApplyToPast ? (
         <label className="entry-toggle">
           <input type="checkbox" checked={applyToPast} onChange={(e) => setApplyToPast(e.target.checked)} />
-          같은 가게 지난 거래에도 적용
+          {t.applyToPast}
         </label>
       ) : null}
       <AssetPicker
-        label={draft.type === "transfer" ? "보내는 자산" : "자산"}
+        label={draft.type === "transfer" ? t.fromAsset : t.asset}
         assets={data.assets}
         value={draft.assetId}
         onChange={(assetId) => setDraft((d) => ({ ...d, assetId }))}
       />
       {draft.type === "transfer" ? (
         <AssetPicker
-          label="받는 자산"
+          label={t.toAsset}
           assets={data.assets}
           value={draft.toAssetId}
           onChange={(toAssetId) => setDraft((d) => ({ ...d, toAssetId }))}
@@ -246,11 +260,9 @@ export function TransactionSheet({ data, initial, original, controls }: Props) {
       ) : null}
       {conversionTargets.length > 0 ? (
         <fieldset className="entry-section entry-fieldset" aria-describedby={`${ids}-convert-hint`}>
-          <legend className="entry-label">이체로 바꾸기</legend>
+          <legend className="entry-label">{t.convertTransfer}</legend>
           <p className="entry-hint" id={`${ids}-convert-hint`}>
-            {draft.type === "income" || draft.isRefund
-              ? "고른 자산에서 받은 돈으로 바로 저장해요. 통계에서는 빠져요."
-              : "고른 자산으로 보낸 돈으로 바로 저장해요. 통계에서는 빠져요."}
+            {draft.type === "income" || draft.isRefund ? t.incomingTransferHint : t.outgoingTransferHint}
           </p>
           <div className="chip-row">
             {conversionTargets.map((asset) => (
@@ -267,7 +279,7 @@ export function TransactionSheet({ data, initial, original, controls }: Props) {
         onChange={(when) => setDraft((d) => ({ ...d, ...when }))}
         error={errors.when}
       />
-      <Field label="내용">
+      <Field label={t.description}>
         {(control) => (
           <Input
             {...control}
@@ -286,7 +298,7 @@ export function TransactionSheet({ data, initial, original, controls }: Props) {
           <option key={merchant} value={merchant} />
         ))}
       </datalist>
-      <Field label="메모">
+      <Field label={t.memo}>
         {(control) => (
           <Input
             {...control}
