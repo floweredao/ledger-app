@@ -6,6 +6,7 @@ import { nowKst } from "../../shared/dates";
 import {
   AssetSchema,
   CategorySchema,
+  MonthNoteSchema,
   RecurringRuleSchema,
   SettingsSchema,
   TemplateSchema,
@@ -21,6 +22,7 @@ const tables = [
   "budgets",
   "recurring_rules",
   "templates",
+  "month_notes",
   "settings",
 ] as const;
 const rowSchema = z.record(z.string(), z.union([z.string(), z.number(), z.null()]));
@@ -38,6 +40,7 @@ const backupSchema = z
         budgets: z.array(rowSchema),
         recurring_rules: z.array(rowSchema),
         templates: z.array(rowSchema),
+        month_notes: z.array(rowSchema).default([]),
         settings: z.array(rowSchema),
       })
       .strict(),
@@ -110,6 +113,7 @@ export function restoreBackup(db: Database, input: unknown, dataDir: string): vo
           if (rule.template.amount === undefined) throw new Error("Recurring amount missing");
         }
         if (table === "templates") TemplateSchema.parse({ ...row, payload: JSON.parse(z.string().parse(row.payload)) });
+        if (table === "month_notes") MonthNoteSchema.extend({ updated_at: z.string() }).parse(row);
         if (table === "budgets" && (typeof row.amount !== "number" || row.amount < 0))
           throw new Error("Invalid budget");
       }

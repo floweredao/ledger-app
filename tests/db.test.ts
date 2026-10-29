@@ -21,10 +21,10 @@ afterEach(() => {
 });
 
 describe("openDb", () => {
-  test("migrates a new file to schema user_version 3", () => {
+  test("migrates a new file to schema user_version 4", () => {
     dir = mkdtempSync(join(tmpdir(), "ledger-db-"));
     const db = open();
-    expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(3);
+    expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(4);
     expect(db.query<{ foreign_keys: number }, []>("PRAGMA foreign_keys").get()?.foreign_keys).toBe(1);
   });
 
@@ -58,7 +58,7 @@ describe("openDb", () => {
           },
         ]);
         expect(db.query("SELECT * FROM transactions").all()).toEqual(transactions);
-        expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(3);
+        expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(4);
       } finally {
         db.close();
       }
@@ -93,11 +93,11 @@ describe("openDb", () => {
       "INSERT INTO recurring_rules(id,template,freq,start_date,created_at,updated_at) VALUES('rule',?,'monthly','2026-10-01',?,?)",
     ).run(payload, now, now);
     v2.query("UPDATE settings SET value=? WHERE key='default_asset_id'").run(JSON.stringify("card"));
-    v2.exec("PRAGMA user_version=2");
+    v2.exec("DROP TABLE month_notes; PRAGMA user_version=2");
     v2.close();
 
     const db = open();
-    expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(3);
+    expect(db.query<{ user_version: number }, []>("PRAGMA user_version").get()?.user_version).toBe(4);
     expect(db.query("SELECT id FROM assets WHERE id IN ('bank','card','manual-card') ORDER BY id").all()).toEqual([
       { id: "bank" },
       { id: "manual-card" },

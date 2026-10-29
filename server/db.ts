@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 import { nowKst } from "../shared/dates";
 import { DEFAULT_SETTINGS } from "../shared/schema";
 
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 const MIGRATION_V1 = `
 CREATE TABLE assets(
@@ -206,6 +206,13 @@ function migrate(db: Database): void {
     }
     if (userVersion(db) < 2) db.exec("ALTER TABLE assets ADD COLUMN opening_date TEXT");
     if (userVersion(db) < 3) foldImportedCheckCards(db);
+    if (userVersion(db) < 4) {
+      db.exec(`CREATE TABLE month_notes(
+        month TEXT PRIMARY KEY NOT NULL CHECK(
+          length(month)=7 AND month GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]'
+          AND substr(month,6,2) BETWEEN '01' AND '12'),
+        body TEXT NOT NULL, updated_at TEXT NOT NULL)`);
+    }
     db.exec(`PRAGMA user_version=${SCHEMA_VERSION}`);
   }).immediate();
 }

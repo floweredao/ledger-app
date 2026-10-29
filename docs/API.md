@@ -182,6 +182,18 @@ AssetSummaryRow는 Asset에 다음을 더해요: `balance`, `usage`(카드의 �
 
 차액이 0이거나, 방향과 맞지 않는 `record_as`이거나, 잔액 기준일(`opening_date`)이 미래이면 400 `invalid_adjustment`이고 아무것도 기록하지 않아요. 201 `{transaction: Transaction, difference}`(`difference`는 입력 잔액 빼기 장부 잔액).
 
+## 월별 메모
+
+달력 월마다 메모 하나를 저장해요. `:yyyymm`은 `YYYY-MM` 형식(예: `2026-10`, 월은 01~12)이고, 잘못된 월은 400 `invalid_input`이에요. 두 엔드포인트 모두 세션 인증이 필요해요.
+
+### `GET /month-notes/:yyyymm`
+응답 200 `{month, body, updated_at}`. 저장된 메모가 없으면 `{"month":"2026-10","body":"","updated_at":null}`이에요.
+
+### `PUT /month-notes/:yyyymm`
+본문 `{body: string}`(필수, 최대 2000자). 앞뒤 공백과 줄바꿈을 그대로 저장해요. 같은 월의 메모를 덮어쓰고 200 `{month, body, updated_at}`를 돌려줘요. `updated_at`은 저장 시각(KST ISO 문자열)이에요. 빈 문자열이면 행을 지우고 `{month, body: "", updated_at: null}`을 돌려줘요. 이미 없는 메모를 지워도 같아요.
+
+변경 요청의 공통 Origin·`X-CSRF-Token` 검사를 적용해요. 본문 형식이 틀리거나 2000자를 넘으면 400 `invalid_input`이에요.
+
 ## 예산
 
 ### `GET /budgets`
@@ -248,6 +260,8 @@ TemplatePayload는 `{type, amount?, is_refund?, asset_id?, to_asset_id?, categor
 ### `GET /export`
 쿼리 `format`(`csv|xlsx`, 기본 csv)과 `GET /transactions`의 필터(`from`, `to`, `type`, `hidden` 등). 조건에 맞는 거래 전부를 `ledger-YYYYMMDD.csv|xlsx` 첨부 파일로 내려줘요. 기간이 뒤집히면 400 `invalid_range`.
 
+CSV와 XLSX는 거래 전용이에요. 월별 메모는 이 파일에 넣지 않고 JSON 백업(`/backup`)에 포함해요.
+
 ### `POST /import/preview`
 `multipart/form-data`의 `file`(CSV 또는 XLSX, 10 MiB까지, 아니면 413). multipart가 아니면 415, 파일이 없거나 깨졌으면 400 `invalid_upload`. 저장하지 않고 다음을 돌려줘요.
 
@@ -269,14 +283,14 @@ TemplatePayload는 `{type, amount?, is_refund?, asset_id?, to_asset_id?, categor
 ## 백업
 
 ### `GET /backup`
-`{version: 1, exported_at, tables: {assets, categories, transactions, merchant_rules, budgets, recurring_rules, templates, settings}}`. 각 표는 데이터베이스 행 그대로예요(불리언은 0/1, JSON 필드는 문자열). 세션, 자격 증명, 멱등성 키, 가져오기 상태는 들어가지 않아요.
+`{version: 1, exported_at, tables: {assets, categories, transactions, merchant_rules, budgets, recurring_rules, templates, month_notes, settings}}`. 각 표는 데이터베이스 행 그대로예요(불리언은 0/1, JSON 필드는 문자열). `month_notes` 행은 `{month, body, updated_at}`예요. 세션, 자격 증명, 멱등성 키, 가져오기 상태는 들어가지 않아요.
 
 ### `POST /backup/restore?confirm=REPLACE`
 `confirm=REPLACE`가 없으면 400 `invalid_request`. 본문은 `GET /backup` 형식 그대로이고 50 MiB까지예요.
 
 1. 모든 행을 검사해요: 열 이름과 개수가 현재 표와 같아야 하고, 타입, NOT NULL, 0/1 플래그, 정수 범위(`src_amount`만 소수 허용), 그리고 각 도메인 스키마까지 맞아야 해요. 이전 백업의 자산 행에 새 열 `opening_date`만 없으면 null로 복원해요. 새 백업은 날짜를 그대로 보존해요. 다른 누락·추가 열이나 잘못된 날짜는 허용하지 않아요. 하나라도 틀리면 아무것도 바꾸지 않고 400 `invalid_request`예요.
 2. 현재 DB를 `data/backups/pre-restore-<uuid>.sqlite`로 스냅숏해요.
-3. 한 트랜잭션 안에서 8개 표를 비우고 다시 채우고, 멱등성 키와 가져오기 상태를 지워요. 제약 조건 위반이면 롤백하고 400 `invalid_request`예요.
+3. 한 트랜잭션 안에서 9개 표를 비우고 다시 채우고, 멱등성 키와 가져오기 상태를 지워요. 이전 백업에 `month_notes` 표가 없으면 메모 없는 상태로 복원해요. 제약 조건 위반이면 롤백하고 400 `invalid_request`예요.
 
 응답 `{ok: true}`.
 
