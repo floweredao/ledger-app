@@ -14,6 +14,7 @@ import { backupRoutes } from "./routes/backup";
 import { budgetsRoutes } from "./routes/budgets";
 import { categoriesRoutes } from "./routes/categories";
 import { ioRoutes } from "./routes/io";
+import { monthNotesRoutes } from "./routes/month-notes";
 import { recurringRoutes } from "./routes/recurring";
 import { settingsRoutes } from "./routes/settings";
 import { statsRoutes } from "./routes/stats";
@@ -90,6 +91,7 @@ const domainRoutes = [
   budgetsRoutes,
   recurringRoutes,
   templatesRoutes,
+  monthNotesRoutes,
   statsRoutes,
   ioRoutes,
   backupRoutes,

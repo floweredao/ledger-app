@@ -11,6 +11,7 @@ import type {
   CategoryPatch,
   CategoryUsage,
   MerchantRule,
+  MonthNote,
   ReassignedCounts,
   RecurringRule,
   SessionState,
@@ -78,6 +79,7 @@ export const paths = {
   assets: (q?: { include_hidden?: boolean }) => withQuery("assets", q),
   assetsSummary: "assets/summary",
   budgets: (month: string) => withQuery("budgets", { month }),
+  monthNote: (month: string) => `month-notes/${encodeURIComponent(month)}`,
   recurring: "recurring",
   templates: "templates",
   statsSummary: (q: StatsQuery) => withQuery("stats/summary", q),
@@ -158,6 +160,8 @@ export const api = {
   ) => send<{ transaction: Transaction; difference: number }>("POST", `assets/${enc(id)}/balance-adjustment`, body),
 
   budgets: (month: string) => apiJson<BudgetStatus>(paths.budgets(month)),
+  putMonthNote: (month: string, body: string): Promise<MonthNote> =>
+    send<MonthNote>("PUT", paths.monthNote(month), { body }),
   putBudget: (body: { category_id?: string; month?: string; amount: number }) => send<Budget>("PUT", "budgets", body),
   deleteBudget: (id: string) => send<{ ok: true }>("DELETE", `budgets/${enc(id)}`),
 
