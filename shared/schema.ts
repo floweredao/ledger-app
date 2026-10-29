@@ -7,6 +7,13 @@ const timestamp = z.string();
 const isoDateTime = z.iso.datetime({ offset: true });
 const date = z.iso.date();
 const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Expected YYYY-MM");
+export const MonthNoteMonthSchema = month;
+export const MonthNoteInputSchema = z.object({ body: z.string().max(2000) }).strict();
+export const MonthNoteSchema = MonthNoteInputSchema.extend({
+  month,
+  updated_at: timestamp.nullable(),
+});
+export type MonthNote = Readonly<z.infer<typeof MonthNoteSchema>>;
 const amount = z.number().int().min(0).max(MAX_AMOUNT);
 const day = z.number().int().min(1).max(31);
 const name = z.string().trim().min(1).max(60);
