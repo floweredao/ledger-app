@@ -31,12 +31,15 @@
   --wash-strong: rgb(20 26 36 / 12%);
   --scrim: rgb(20 26 36 / 40%);
 
-  --accent: #2769c6;
+  /* Coral accent (편한가계부 feel): primary actions, selection, expense amounts. Income keeps its own blue. */
+  --accent: #c4342b;
   --accent-contrast: #ffffff;
-  --accent-soft: rgb(39 105 198 / 10%);
+  --accent-soft: rgb(196 52 43 / 10%);
 
-  --income: var(--accent);
-  --expense: var(--text);
+  --income: #1c6ac9;
+  --expense: var(--accent);
+  --weekend-sun: var(--accent);
+  --weekend-sat: var(--income);
   --refund: #03765e;
   --danger: #c52b30;
   --danger-soft: rgb(197 43 48 / 10%);
@@ -108,6 +111,7 @@
   --ease-out: cubic-bezier(0.32, 0.72, 0, 1);
 
   --tabbar-h: 56px;
+  --fab-size: 56px;
   --topbar-h: 52px;
   --sidebar-w: 240px;
   --content-max-w: 720px;
@@ -119,6 +123,7 @@
   --row-h: 56px;
   --key-h: 52px;
   --icon-tile: 36px;
+  --icon-tile-sm: 24px;
   --z-sticky: 10;
   --z-tabbar: 20;
   --z-overlay: 30;
@@ -147,9 +152,10 @@
     --wash-strong: rgb(255 255 255 / 14%);
     --scrim: rgb(0 0 0 / 65%);
 
-    --accent: #70a6f5;
+    --accent: #ff7a6e;
     --accent-contrast: #0f1115;
-    --accent-soft: rgb(112 166 245 / 15%);
+    --accent-soft: rgb(255 122 110 / 15%);
+    --income: #6eabff;
 
     --refund: #4ebb9d;
     --danger: #f47a79;
@@ -195,9 +201,10 @@
   --wash-strong: rgb(255 255 255 / 14%);
   --scrim: rgb(0 0 0 / 65%);
 
-  --accent: #70a6f5;
+  --accent: #ff7a6e;
   --accent-contrast: #0f1115;
-  --accent-soft: rgb(112 166 245 / 15%);
+  --accent-soft: rgb(255 122 110 / 15%);
+  --income: #6eabff;
 
   --refund: #4ebb9d;
   --danger: #f47a79;

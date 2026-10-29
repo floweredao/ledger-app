@@ -11,6 +11,7 @@ import { ICON_STROKE_WIDTH } from "./Button";
 import { componentMessages } from "./messages";
 import { sectionOf } from "./nav";
 import { OfflineBanner } from "./OfflineBanner";
+import { RecordButton } from "./RecordButton";
 import { Sidebar } from "./Sidebar";
 import { TabBar } from "./TabBar";
 import { ToastRegion } from "./Toast";
@@ -23,6 +24,8 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
     ledger: c.appName,
     calendar: t.calendar,
     monthly: t.monthly,
+    summary: t.summary,
+    memo: t.memo,
     search: t.search,
     stats: t.stats,
     budget: t.budget,
@@ -103,7 +106,7 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
     };
   }, []);
   return (
-    <div className="app-shell" style={{ strokeWidth: ICON_STROKE_WIDTH }}>
+    <div className="app-shell" data-fab={section && section !== "settings" ? "" : undefined} style={{ strokeWidth: ICON_STROKE_WIDTH }}>
       <a className="skip-link" href="#main">
         {t.skipContent}
       </a>
@@ -118,6 +121,7 @@ export function AppShell({ children }: { readonly children: ReactNode }) {
         </main>
       </div>
       <TabBar active={section} />
+      {section && section !== "settings" ? <RecordButton /> : null}
       <div className="sr-only" role="status" aria-live="polite" aria-atomic="true" aria-label={t.screenNavigation}>
         {title}
       </div>

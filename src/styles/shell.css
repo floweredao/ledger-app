@@ -75,36 +75,12 @@
   border-top: 1px solid var(--border);
 }
 
-.tabbar-controls {
+.tabbar-list {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   height: var(--tabbar-h);
   max-width: var(--content-max-w);
   margin-inline: auto;
-}
-
-.tabbar-controls > nav {
-  grid-column: 1 / -1;
-  grid-row: 1;
-}
-
-.tabbar-list {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  height: 100%;
-}
-
-.tabbar-list > li:nth-child(3) {
-  grid-column: 4;
-}
-
-.tabbar-list > li:nth-child(4) {
-  grid-column: 5;
-}
-
-.tabbar-controls > .tab-add {
-  grid-column: 3;
-  grid-row: 1;
 }
 
 .tab {
@@ -136,7 +112,7 @@
 }
 
 .tab[aria-current="page"] {
-  color: var(--text);
+  color: var(--accent);
   font-weight: var(--weight-bold);
 }
 
@@ -148,20 +124,47 @@
   background: var(--wash);
 }
 
-.tab-add-circle {
+/* Floating record button: above the tab bar and safe area, never part of the nav. */
+.record-fab {
+  position: fixed;
+  right: max(var(--space-4), var(--safe-right));
+  bottom: calc(var(--tabbar-h) + var(--safe-bottom) + var(--space-4));
+  z-index: var(--z-tabbar);
   display: grid;
   place-items: center;
-  width: var(--hit-min);
-  height: var(--hit-min);
+  width: var(--fab-size);
+  height: var(--fab-size);
   border-radius: var(--radius-pill);
   background: var(--accent);
   color: var(--accent-contrast);
-  box-shadow: var(--shadow-1);
+  box-shadow: var(--shadow-2);
   transition: transform var(--dur-fast) ease;
 }
 
-.tab-add:active .tab-add-circle {
+.record-fab:active {
   transform: scale(0.94);
+}
+
+.record-fab:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 3px;
+}
+
+/* The last row must scroll clear of the floating button. */
+.app-shell[data-fab] .app-main {
+  padding-bottom: calc(
+    var(--tabbar-h) + var(--safe-bottom) + var(--fab-size) + var(--space-8) + var(--toast-clearance, 0px)
+  );
+}
+
+@media (min-width: 900px) {
+  .record-fab {
+    display: none;
+  }
+
+  .app-shell[data-fab] .app-main {
+    padding-bottom: calc(var(--space-12) + var(--toast-clearance, 0px));
+  }
 }
 
 @media (min-width: 900px) {
@@ -588,6 +591,11 @@
   height: var(--icon-tile);
   border-radius: var(--radius-pill);
   color: var(--cat-glyph);
+}
+
+.category-icon[data-size="sm"] {
+  width: var(--icon-tile-sm);
+  height: var(--icon-tile-sm);
 }
 
 /* ---------- List row ---------- */
