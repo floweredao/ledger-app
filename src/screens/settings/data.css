@@ -1,29 +1,48 @@
 .data-screen {
   max-width: var(--content-max-w);
   margin: 0 auto;
-  padding: var(--space-4);
+  padding: 0 max(var(--space-4), var(--safe-right)) var(--space-6) max(var(--space-4), var(--safe-left));
   display: flex;
   flex-direction: column;
-  gap: var(--space-6);
+  gap: var(--space-2);
 }
 
-.data-screen > h1 {
-  font-size: var(--text-xl);
-  font-weight: var(--weight-semibold);
-  color: var(--text);
-}
-
+/* 편한가계부 백업/복원: grey group title, then a flat full-width surface. */
 .data-section {
-  border-radius: var(--radius-card);
+  margin-inline: calc(max(var(--space-4), var(--safe-left)) * -1) calc(max(var(--space-4), var(--safe-right)) * -1);
+  border-block: 1px solid var(--border);
   background: var(--surface);
-  padding: var(--space-4);
+  padding: var(--space-3) max(var(--space-4), var(--safe-right)) var(--space-4) max(var(--space-4), var(--safe-left));
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
   min-width: 0;
 }
 
-.data-section h2,
+.data-section > h2 {
+  margin: calc(var(--space-3) * -1) calc(max(var(--space-4), var(--safe-right)) * -1) 0
+    calc(max(var(--space-4), var(--safe-left)) * -1);
+  padding: var(--space-4) max(var(--space-4), var(--safe-left)) var(--space-2);
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.data-section > h2 + * {
+  margin-top: var(--space-1);
+}
+
+@media (min-width: 900px) {
+  .data-section {
+    margin-inline: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+  }
+}
+
 .data-preview h3 {
   font-size: var(--text-md);
   font-weight: var(--weight-semibold);

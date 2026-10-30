@@ -300,9 +300,7 @@ export default function CalendarView() {
               <h2 className="section-title">{formatDisplayDate(selectedDate)}</h2>
               <p className="calendar-day-summary">{m.recordCount(totalsByDate.get(selectedDate)?.count ?? 0)}</p>
             </div>
-            <Button variant="primary" onClick={() => openEntry({ date: selectedDate })}>
-              {m.addOnDate}
-            </Button>
+            <Button onClick={() => openEntry({ date: selectedDate })}>{m.addOnDate}</Button>
           </div>
           <DayTransactions date={selectedDate} />
         </aside>

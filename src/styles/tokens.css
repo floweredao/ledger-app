@@ -31,14 +31,15 @@
   --wash-strong: rgb(20 26 36 / 12%);
   --scrim: rgb(20 26 36 / 40%);
 
-  /* Coral accent (편한가계부 feel): primary actions, selection, expense amounts. Income keeps its own blue. */
-  --accent: #c4342b;
+  /* Coral accent (편한가계부 feel), lowered in chroma: only for things you press or the current selection.
+     Expense amounts stay in the body colour with their minus sign, so the accent keeps one meaning (DESIGN.md Color). */
+  --accent: #c4493c;
   --accent-contrast: #ffffff;
-  --accent-soft: rgb(196 52 43 / 10%);
+  --accent-soft: rgb(196 73 60 / 8%);
 
-  --income: #1c6ac9;
-  --expense: var(--accent);
-  --weekend-sun: var(--accent);
+  --income: #336cb5;
+  --expense: var(--text);
+  --weekend-sun: #b14f45;
   --weekend-sat: var(--income);
   --refund: #03765e;
   --danger: #c52b30;
@@ -152,10 +153,11 @@
     --wash-strong: rgb(255 255 255 / 14%);
     --scrim: rgb(0 0 0 / 65%);
 
-    --accent: #ff7a6e;
+    --accent: #eb8375;
     --accent-contrast: #0f1115;
-    --accent-soft: rgb(255 122 110 / 15%);
-    --income: #6eabff;
+    --accent-soft: rgb(235 131 117 / 14%);
+    --income: #84b5ec;
+    --weekend-sun: #e88f84;
 
     --refund: #4ebb9d;
     --danger: #f47a79;
@@ -201,10 +203,11 @@
   --wash-strong: rgb(255 255 255 / 14%);
   --scrim: rgb(0 0 0 / 65%);
 
-  --accent: #ff7a6e;
+  --accent: #eb8375;
   --accent-contrast: #0f1115;
-  --accent-soft: rgb(255 122 110 / 15%);
-  --income: #6eabff;
+  --accent-soft: rgb(235 131 117 / 14%);
+  --income: #84b5ec;
+  --weekend-sun: #e88f84;
 
   --refund: #4ebb9d;
   --danger: #f47a79;

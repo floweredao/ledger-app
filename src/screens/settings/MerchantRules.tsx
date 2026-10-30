@@ -9,6 +9,7 @@ import { common } from "../../i18n/common";
 import { formatDisplayDate } from "../../i18n/format";
 import { settingsMessages } from "./messages";
 import "./categories.css";
+import { SubpageHeader } from "./SubpageHeader";
 
 export default function MerchantRules() {
   const m = useMessages(settingsMessages);
@@ -35,7 +36,7 @@ export default function MerchantRules() {
   }
   return (
     <div className="screen merchant-rules">
-      <h1 className="screen-title">{m.rules}</h1>
+      <SubpageHeader title={m.rules} />
       {offline ? <p role="status">{m.rulesOffline}</p> : null}
       {loading && !data ? <p>{m.loading}</p> : null}
       {error ? (

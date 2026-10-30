@@ -417,3 +417,14 @@
     grid-template-columns: var(--space-8) minmax(0, 1fr) auto;
   }
 }
+
+/* Phone: sections are flat full-width surfaces like the ledger tab's groups; cards come back at 900px. */
+@media (max-width: 899px) {
+  .stats-period,
+  .stats-overview,
+  .stats-panel {
+    margin-inline: calc(max(var(--space-4), var(--safe-left)) * -1) calc(max(var(--space-4), var(--safe-right)) * -1);
+    border-block: 1px solid var(--border);
+    border-radius: 0;
+  }
+}
