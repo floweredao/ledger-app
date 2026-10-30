@@ -30,7 +30,9 @@ describe("MonthlyView", () => {
     let requestedUrl = "";
     globalThis.fetch = Object.assign(
       async (input: RequestInfo | URL) => {
-        requestedUrl = String(input);
+        const url = String(input);
+        if (!url.includes("stats/trend")) return Response.json({ items: [], next_cursor: null });
+        requestedUrl = url;
         return new Response(JSON.stringify(trend), { status: 200, headers: { "Content-Type": "application/json" } });
       },
       { preconnect: originalFetch.preconnect },
@@ -59,8 +61,10 @@ describe("MonthlyView", () => {
   test("month links open the selected calendar month", async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = Object.assign(
-      async () =>
-        new Response(JSON.stringify({ buckets: [] }), { status: 200, headers: { "Content-Type": "application/json" } }),
+      async (input: RequestInfo | URL) =>
+        String(input).includes("stats/trend")
+          ? new Response(JSON.stringify({ buckets: [] }), { status: 200, headers: { "Content-Type": "application/json" } })
+          : Response.json({ items: [], next_cursor: null }),
       { preconnect: originalFetch.preconnect },
     );
 

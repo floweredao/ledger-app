@@ -34,7 +34,7 @@ test("shell follows English for navigation title and announcements", async () =>
     ),
   );
   const nav = screen.getByRole("navigation", { name: "Bottom navigation" });
-  for (const name of ["Ledger", "Statistics", "Assets", "Settings"]) {
+  for (const name of ["Ledger", "Statistics", "Budget", "Assets", "More"]) {
     expect(within(nav).getByRole("link", { name })).toBeTruthy();
   }
   expect(document.title).toBe("Calendar · Ledger");
