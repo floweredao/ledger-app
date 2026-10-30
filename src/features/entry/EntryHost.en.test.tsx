@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { clearCache } from "../../api/cache";
 import { clearMemoryCache } from "../../api/hooks";
 import { markNetwork } from "../../api/transport";
@@ -44,8 +44,11 @@ test("entry follows English while preserving database names", async () => {
   });
   expect(screen.getByRole("dialog", { name: "Add record" })).toBeTruthy();
   expect(screen.getByRole("button", { name: "Save" })).toBeTruthy();
-  expect(screen.getByLabelText("Amount").textContent).toBe("₩0");
+  expect(screen.getByRole("button", { name: "Save & next" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: /^Amount(, |$)/ }).textContent).toBe("Enter amount");
+  expect(screen.getByRole("button", { name: "Next" })).toBeTruthy();
   expect(screen.getByLabelText("Date")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: /^Category(, |$)/ }));
   expect(screen.getByRole("button", { name: "식비" })).toBeTruthy();
   const copy = document.body.textContent?.replace(/식비|교통|테스트통장|샘플카드|샘플카페 아메리카노/g, "");
   expect(copy).not.toMatch(/[가-힣]/);

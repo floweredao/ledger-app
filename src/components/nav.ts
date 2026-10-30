@@ -1,10 +1,10 @@
-import { BookOpen, ChartPie, type LucideIcon, Settings, Wallet } from "lucide-react";
+import { BookOpen, ChartPie, Ellipsis, type LucideIcon, PiggyBank, Wallet } from "lucide-react";
 import { messages } from "../i18n";
 import { common } from "../i18n/common";
 import type { RouteName } from "../router";
 import { componentMessages } from "./messages";
 
-export type Section = "ledger" | "stats" | "assets" | "settings";
+export type Section = "ledger" | "stats" | "budget" | "assets" | "settings";
 
 export const NAV_ITEMS: readonly { section: Section; to: string; label: string; icon: LucideIcon }[] = [
   {
@@ -24,6 +24,14 @@ export const NAV_ITEMS: readonly { section: Section; to: string; label: string; 
     icon: ChartPie,
   },
   {
+    section: "budget",
+    to: "/budget",
+    get label() {
+      return messages(componentMessages).budget;
+    },
+    icon: PiggyBank,
+  },
+  {
     section: "assets",
     to: "/assets",
     get label() {
@@ -35,9 +43,9 @@ export const NAV_ITEMS: readonly { section: Section; to: string; label: string; 
     section: "settings",
     to: "/settings",
     get label() {
-      return messages(componentMessages).settings;
+      return messages(componentMessages).more;
     },
-    icon: Settings,
+    icon: Ellipsis,
   },
 ];
 
@@ -46,11 +54,14 @@ export function sectionOf(route: RouteName): Section | null {
     case "ledger":
     case "calendar":
     case "monthly":
+    case "summary":
+    case "memo":
     case "search":
       return "ledger";
     case "stats":
-    case "budget":
       return "stats";
+    case "budget":
+      return "budget";
     case "assets":
     case "asset-detail":
       return "assets";

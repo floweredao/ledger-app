@@ -35,6 +35,25 @@ export function SegmentedControl<T extends string>({ label, options, value, onCh
 
 type SegmentLink = { readonly label: string; readonly to: string; readonly current: boolean };
 
+/** Sub-screen navigation drawn as an underline tab row; links with aria-current like SegmentedLinks. */
+export function UnderlineTabs({ label, items }: { readonly label: string; readonly items: readonly SegmentLink[] }) {
+  return (
+    <nav className="underline-tabs" aria-label={label}>
+      {items.map((item) => (
+        <Link
+          key={item.label}
+          to={item.to}
+          replace
+          className="underline-tab"
+          aria-current={item.current ? "page" : undefined}
+        >
+          {item.label}
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 /** Screen navigation: links with aria-current, never radios. */
 export function SegmentedLinks({ label, items }: { readonly label: string; readonly items: readonly SegmentLink[] }) {
   return (

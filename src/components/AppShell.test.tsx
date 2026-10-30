@@ -48,13 +48,17 @@ function TransactionCount() {
 }
 
 describe("AppShell navigation", () => {
-  test("renders a tab bar and a sidebar with the four destinations", () => {
+  test("renders a tab bar and a sidebar with the five destinations in order", () => {
     render(<AppShell>본문</AppShell>);
     for (const name of ["하단 메뉴", "사이드 메뉴"]) {
       const nav = screen.getByRole("navigation", { name });
-      for (const label of ["가계부", "통계", "자산", "설정"]) {
-        expect(within(nav).getByRole("link", { name: label })).toBeTruthy();
-      }
+      expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual([
+        "가계부",
+        "통계",
+        "예산",
+        "자산",
+        "더보기",
+      ]);
     }
     expect(screen.getByRole("main").textContent).toBe("본문");
   });
@@ -69,11 +73,11 @@ describe("AppShell navigation", () => {
   test("the add command is a button, never the current tab, and opens the entry host", () => {
     render(<AppShell>본문</AppShell>);
     const tabs = screen.getByRole("navigation", { name: "하단 메뉴" });
-    expect(within(tabs).getAllByRole("link")).toHaveLength(4);
+    expect(within(tabs).getAllByRole("link")).toHaveLength(5);
     expect(within(tabs).queryByRole("button") === null).toBe(true);
     const add = screen
       .getAllByRole("button", { name: "기록하기" })
-      .find((button) => button.classList.contains("tab-add"));
+      .find((button) => button.classList.contains("record-fab"));
     if (!add) throw new Error("Missing one-tap record command");
     expect(add.closest("nav")).toBeNull();
     expect(add.getAttribute("aria-current")).toBeNull();
@@ -121,7 +125,7 @@ describe("AppShell navigation", () => {
     render(<AppShell>본문</AppShell>);
     const sidebar = screen.getByRole("navigation", { name: "사이드 메뉴" });
     fireEvent.click(within(sidebar).getByRole("link", { name: "통계" }));
-    fireEvent.click(within(sidebar).getByRole("link", { name: "설정" }));
+    fireEvent.click(within(sidebar).getByRole("link", { name: "더보기" }));
     expect(location.pathname).toBe("/settings/preferences");
   });
 
