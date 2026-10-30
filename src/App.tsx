@@ -40,6 +40,8 @@ function Screen({ route, onLoggedOut }: { readonly route: Route; readonly onLogg
     case "ledger":
     case "calendar":
     case "monthly":
+    case "summary":
+    case "memo":
       return <LedgerScreen />;
     case "search":
       return <SearchScreen />;

@@ -1,5 +1,5 @@
 import { type RefObject, useEffect, useRef } from "react";
-import { type KeypadKey, keypadKeyFor } from "./form";
+import { type CalcKey, keypadKeyFor } from "./form";
 
 const TEXT_INPUT_TYPES = new Set(["text", "search", "date", "time", "number", "email", "url", "tel"]);
 
@@ -8,9 +8,9 @@ function isTypingTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement && TEXT_INPUT_TYPES.has(target.type);
 }
 
-type Handlers = { readonly onKey: (key: KeypadKey) => void; readonly onEnter: () => void };
+type Handlers = { readonly onKey: (key: CalcKey) => void; readonly onEnter: () => void };
 
-/** Desktop keyboard for the sheet that contains `formRef`: digits and Backspace edit the amount, Enter saves. */
+/** Desktop keyboard for the sheet that contains `formRef`: digits, + - * / and Backspace edit the amount, Enter saves. */
 export function useEntryKeyboard(formRef: RefObject<HTMLFormElement | null>, handlers: Handlers): void {
   const latest = useRef(handlers);
   latest.current = handlers;

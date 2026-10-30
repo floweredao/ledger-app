@@ -1,27 +1,44 @@
-import { Search } from "lucide-react";
-import { useEffect } from "react";
+import { Search, SlidersHorizontal, Star } from "lucide-react";
+import { useEffect, useState } from "react";
 import { kstMonth } from "../../../shared/dates";
 import type { Settings, StatsSummary } from "../../../shared/schema";
 import { paths } from "../../api/client";
 import { useApi } from "../../api/hooks";
 import { calendarMonthFilter, calendarYearFilter } from "../../app/periods";
-import { Button } from "../../components/Button";
+import { Button, IconButton } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 import { MonthSwitcher } from "../../components/MonthSwitcher";
-import { SegmentedLinks } from "../../components/SegmentedControl";
+import { UnderlineTabs } from "../../components/SegmentedControl";
 import { Skeleton } from "../../components/Skeleton";
 import { useMessages } from "../../i18n";
 import { common } from "../../i18n/common";
-import { formatSigned, formatWon } from "../../i18n/format";
+import { formatWon } from "../../i18n/format";
 import { Link, navigate, useRoute, useSelectedMonth, useSelectedYear } from "../../router";
 import CalendarView from "./CalendarView";
 import DailyList from "./DailyList";
+import FavoritesSheet from "./FavoritesSheet";
 import MonthlyView from "./MonthlyView";
+import MonthNote from "./MonthNote";
+import MonthSummary from "./MonthSummary";
 import { ledgerMessages } from "./messages";
+import "./ledger.css";
 
-type View = "daily" | "calendar" | "monthly";
+type View = "daily" | "calendar" | "monthly" | "summary" | "memo";
 
-function SummaryCard({ view, month, year }: { readonly view: View; readonly month: string; readonly year: string }) {
+const VIEW_OF: Readonly<Record<string, View>> = {
+  calendar: "calendar",
+  monthly: "monthly",
+  summary: "summary",
+  memo: "memo",
+};
+
+function signedNet(net: number): string {
+  if (net === 0) return formatWon(0);
+  return net < 0 ? `-${formatWon(-net)}` : `+${formatWon(net)}`;
+}
+
+/** One line of income / expense / total at equal weight, under the sub-tabs. */
+function SummaryStrip({ view, month, year }: { readonly view: View; readonly month: string; readonly year: string }) {
   const m = useMessages(ledgerMessages);
   const c = useMessages(common);
   const filter = view === "monthly" ? calendarYearFilter(year) : calendarMonthFilter(month);
@@ -43,23 +60,23 @@ function SummaryCard({ view, month, year }: { readonly view: View; readonly mont
   }
   const { income, expense, net } = summary.data;
   return (
-    <section className="summary-card" aria-label={caption}>
-      <dl className="summary-grid">
+    <section className="summary-strip" aria-label={caption}>
+      <dl className="summary-strip-grid">
         <div>
           <dt>{c.income}</dt>
           <dd className="num" data-kind="income">
-            {income === 0 ? formatWon(0) : formatSigned("income", income)}
+            {formatWon(income)}
           </dd>
         </div>
         <div>
           <dt>{c.expense}</dt>
           <dd className="num" data-kind="expense">
-            {expense === 0 ? formatWon(0) : formatSigned("expense", expense)}
+            {formatWon(expense)}
           </dd>
         </div>
         <div>
           <dt>{m.total}</dt>
-          <dd className="num">{net === 0 ? formatWon(0) : net < 0 ? `-${formatWon(-net)}` : `+${formatWon(net)}`}</dd>
+          <dd className="num">{signedNet(net)}</dd>
         </div>
       </dl>
     </section>
@@ -73,7 +90,8 @@ export default function LedgerScreen() {
   const route = useRoute();
   const [month, setMonth] = useSelectedMonth();
   const [year, setYear] = useSelectedYear();
-  const view: View = route.name === "calendar" ? "calendar" : route.name === "monthly" ? "monthly" : "daily";
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
+  const view: View = VIEW_OF[route.name] ?? "daily";
   const settings = useApi<Settings>(paths.settings);
   // A bare `/` (app start, the 가계부 tab) opens the tab chosen in settings; links with a period stay put.
   const bare = route.name === "ledger" && route.query.toString() === "";
@@ -83,22 +101,28 @@ export default function LedgerScreen() {
     if (bare && (start === "calendar" || start === "monthly")) navigate(`/${start}`, { replace: true });
   }, [bare, start]);
   const monthForLinks = view === "monthly" && month.slice(0, 4) !== year ? `${year}-${kstMonth().slice(5)}` : month;
+  const range = calendarMonthFilter(monthForLinks);
 
   return (
-    <div className="screen">
-      <header className="screen-header">
-        <h1 className="screen-title">{c.appName}</h1>
+    <div className="screen ledger-screen">
+      <header className="ledger-topbar">
         <Link to="/search" className="icon-btn" aria-label={m.search}>
-          <Search aria-hidden="true" size={20} strokeWidth={2} />
+          <Search aria-hidden="true" size={22} strokeWidth={2} />
         </Link>
+        <h1 className="ledger-topbar-title">{c.appName}</h1>
+        <div className="ledger-topbar-actions">
+          <IconButton label={m.favorites} icon={Star} onClick={() => setFavoritesOpen(true)} />
+          <Link to={`/search?from=${range.from}&to=${range.to}&filters=1`} className="icon-btn" aria-label={m.filters}>
+            <SlidersHorizontal aria-hidden="true" size={22} strokeWidth={2} />
+          </Link>
+        </div>
       </header>
       {view === "monthly" ? (
         <MonthSwitcher unit="year" value={year} onChange={setYear} />
       ) : (
         <MonthSwitcher value={month} onChange={setMonth} />
       )}
-      <SummaryCard view={view} month={month} year={year} />
-      <SegmentedLinks
+      <UnderlineTabs
         label={m.ledgerView}
         items={[
           { label: m.daily, to: `/?month=${monthForLinks}`, current: view === "daily" },
@@ -108,12 +132,18 @@ export default function LedgerScreen() {
             to: `/monthly?year=${view === "monthly" ? year : month.slice(0, 4)}`,
             current: view === "monthly",
           },
+          { label: m.summary, to: `/summary?month=${monthForLinks}`, current: view === "summary" },
+          { label: m.memo, to: `/memo?month=${monthForLinks}`, current: view === "memo" },
         ]}
       />
+      {view === "memo" ? null : <SummaryStrip view={view} month={month} year={year} />}
       {redirecting ? <Skeleton rows={4} label={m.openingLedger} /> : null}
       {view === "daily" && !redirecting ? <DailyList /> : null}
       {view === "calendar" ? <CalendarView /> : null}
       {view === "monthly" ? <MonthlyView /> : null}
+      {view === "summary" ? <MonthSummary month={month} /> : null}
+      {view === "memo" ? <MonthNote key={month} month={month} /> : null}
+      <FavoritesSheet open={favoritesOpen} onClose={() => setFavoritesOpen(false)} />
     </div>
   );
 }

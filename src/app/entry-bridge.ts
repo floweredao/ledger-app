@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
+import type { EntryDraft } from "../features/entry/form";
 
 export type EntryRequest = {
   readonly id?: string;
   /** `YYYY-MM-DD` */
   readonly date?: string;
   readonly templateId?: string;
+  /** 복사하기: a new record that starts from this draft. */
+  readonly copy?: EntryDraft;
 };
 
 const EVENT = "ledger:open-entry";

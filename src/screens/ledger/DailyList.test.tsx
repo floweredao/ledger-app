@@ -188,9 +188,9 @@ describe("DailyList", () => {
       navigate(`/?month=${month}`, { replace: true });
       render(<DailyList />);
       expect((await screen.findAllByText("샘플카페")).length).toBe(2);
-      expect(screen.getByText("수입 +12,000원")).toBeTruthy();
-      expect(screen.getByText("지출 -3,200원")).toBeTruthy();
-      expect(screen.getByText("지출 -4,200원")).toBeTruthy();
+      expect(screen.getByText("수입 합계 12,000원")).toBeTruthy();
+      expect(screen.getByText("지출 합계 3,200원")).toBeTruthy();
+      expect(screen.getByText("지출 합계 4,200원")).toBeTruthy();
       expect(screen.getByText("환불 1,000원")).toBeTruthy();
       expect(screen.getByRole("region", { name: "2일 금요일" })).toBeTruthy();
       const requestedUrl = requestedUrls.find((url) => url.includes("transactions")) ?? "";
@@ -369,7 +369,7 @@ test("a refund-only day displays returned money without a double minus", async (
   try {
     navigate("/?month=2026-10", { replace: true });
     render(<DailyList />);
-    expect(await screen.findByText("지출 +1,000원")).toBeTruthy();
+    expect(await screen.findByText("지출 합계 +1,000원")).toBeTruthy();
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -431,11 +431,10 @@ test("each record shows its category, with the parent in front of a child catego
     navigate("/?month=2026-10", { replace: true });
     render(<DailyList />);
     const snack = await screen.findByRole("button", { name: /샘플편의점/ });
-    await waitFor(() =>
-      expect(snack.querySelector(".list-row-subtitle")?.textContent).toBe("식비 › 간식 · 테스트통장"),
-    );
+    await waitFor(() => expect(snack.querySelector(".ledger-row-category")?.textContent).toBe("식비 › 간식"));
+    expect(snack.querySelector(".ledger-row-subtitle")?.textContent).toBe("테스트통장");
     const meal = screen.getByRole("button", { name: /샘플식당/ });
-    expect(meal.querySelector(".list-row-subtitle")?.textContent).toBe("식비 · 테스트통장");
+    expect(meal.querySelector(".ledger-row-category")?.textContent).toBe("식비");
   } finally {
     globalThis.fetch = originalFetch;
   }
@@ -474,7 +473,7 @@ test("a transfer without a merchant names the transfer and both assets instead o
     navigate("/?month=2026-10", { replace: true });
     render(<DailyList />);
     const row = await screen.findByRole("button", { name: /샘플보관금 → 테스트통장/ });
-    expect(row.querySelector(".list-row-title")?.textContent).toBe("이체");
+    expect(row.querySelector(".ledger-row-title")?.textContent).toBe("이체");
     expect(row.textContent).not.toContain("분류 없음");
   } finally {
     globalThis.fetch = originalFetch;
