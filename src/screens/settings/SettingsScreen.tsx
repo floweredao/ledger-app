@@ -1,23 +1,56 @@
-import { LogOut } from "lucide-react";
+import {
+  ChevronRight,
+  DatabaseBackup,
+  LogOut,
+  type LucideIcon,
+  PiggyBank,
+  Repeat,
+  SlidersHorizontal,
+  Star,
+  Store,
+  Tags,
+  Wallet,
+} from "lucide-react";
 import { useState } from "react";
 import { api, isNetworkError } from "../../api/client";
 import { ConfirmDialog } from "../../components/Dialog";
 import { ListRow } from "../../components/ListRow";
 import { messages, useMessages } from "../../i18n";
 import { common } from "../../i18n/common";
-import { Link } from "../../router";
 import { settingsMessages } from "./messages";
+import "./settings.css";
 
 const VERSION = "0.0.1";
 
-const menuItems = () => [
-  { label: messages(settingsMessages).categories, href: "/settings/categories" },
-  { label: messages(settingsMessages).rules, href: "/settings/rules" },
-  { label: messages(settingsMessages).recurring, href: "/settings/recurring" },
-  { label: messages(settingsMessages).templates, href: "/settings/templates" },
-  { label: messages(settingsMessages).data, href: "/settings/data" },
-  { label: messages(settingsMessages).preferences, href: "/settings/preferences" },
-];
+type MenuItem = { readonly label: string; readonly hint: string; readonly href: string; readonly icon: LucideIcon };
+
+/** Grouped like 편한가계부's 설정: ledger habits, catalog (categories and assets), then data. */
+const menuGroups = (): readonly { readonly title: string; readonly items: readonly MenuItem[] }[] => {
+  const m = messages(settingsMessages);
+  return [
+    {
+      title: m.groupLedger,
+      items: [
+        { label: m.preferences, hint: m.preferencesHint, href: "/settings/preferences", icon: SlidersHorizontal },
+        { label: m.recurring, hint: m.recurringHint, href: "/settings/recurring", icon: Repeat },
+        { label: m.templates, hint: m.templatesHint, href: "/settings/templates", icon: Star },
+      ],
+    },
+    {
+      title: m.groupCatalog,
+      items: [
+        { label: m.categories, hint: m.categoriesHint, href: "/settings/categories", icon: Tags },
+        { label: m.rules, hint: m.merchantRulesHint, href: "/settings/rules", icon: Store },
+        { label: m.assetSettings, hint: m.assetSettingsHint, href: "/assets", icon: Wallet },
+        { label: m.budgetSettings, hint: m.budgetSettingsHint, href: "/budget", icon: PiggyBank },
+      ],
+    },
+    {
+      title: m.groupData,
+      items: [{ label: m.data, hint: m.dataHint, href: "/settings/data", icon: DatabaseBackup }],
+    },
+  ];
+};
 
 export default function SettingsScreen({ onLoggedOut }: { readonly onLoggedOut: () => void }) {
   const m = useMessages(settingsMessages);
@@ -42,31 +75,45 @@ export default function SettingsScreen({ onLoggedOut }: { readonly onLoggedOut: 
 
   return (
     <>
-      <div className="screen">
-        <h1 className="screen-title">{m.settings}</h1>
-
-        <section className="settings-menu">
-          {menuItems().map((item) => (
-            <Link key={item.href} to={item.href} className="list-row-container">
-              <ListRow title={item.label} />
-            </Link>
-          ))}
-
-          <button
-            type="button"
-            className="list-row-container"
-            onClick={() => {
-              setLogoutError(null);
-              setShowLogoutConfirm(true);
-            }}
-          >
-            <ListRow title={m.logout} leading={<LogOut size={20} />} />
-          </button>
-        </section>
-
-        <footer className="settings-footer">
+      <div className="screen settings-screen">
+        <header className="settings-topbar">
+          <span aria-hidden="true" />
+          <h1 className="settings-title">{m.settings}</h1>
           <p className="settings-version">{VERSION}</p>
-        </footer>
+        </header>
+
+        {menuGroups().map((group) => (
+          <section key={group.title} className="settings-group" aria-labelledby={`settings-${group.title}`}>
+            <h2 className="settings-group-title" id={`settings-${group.title}`}>
+              {group.title}
+            </h2>
+            <div className="settings-group-rows">
+              {group.items.map((item) => (
+                <ListRow
+                  key={item.href}
+                  to={item.href}
+                  leading={<item.icon size={20} aria-hidden="true" />}
+                  title={item.label}
+                  subtitle={item.hint}
+                  trailing={<ChevronRight size={18} aria-hidden="true" />}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+
+        <section className="settings-group" aria-label={m.groupAccount}>
+          <div className="settings-group-rows">
+            <ListRow
+              leading={<LogOut size={20} aria-hidden="true" />}
+              title={m.logout}
+              onClick={() => {
+                setLogoutError(null);
+                setShowLogoutConfirm(true);
+              }}
+            />
+          </div>
+        </section>
       </div>
 
       <ConfirmDialog
