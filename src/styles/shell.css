@@ -617,6 +617,20 @@
   height: var(--icon-tile-sm);
 }
 
+/* ---------- Tab top bar ---------- */
+/* Centred tab title, the same bar the ledger tab uses (편한가계부 layout). */
+.tab-topbar {
+  display: grid;
+  place-items: center;
+  min-height: var(--topbar-h);
+}
+
+.tab-topbar-title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-title);
+}
+
 /* ---------- List row ---------- */
 .list-row {
   display: flex;

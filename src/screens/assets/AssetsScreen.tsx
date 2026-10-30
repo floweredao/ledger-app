@@ -44,10 +44,9 @@ export default function AssetsScreen() {
   return (
     <div className="screen asset-screen">
       <header className="asset-header">
-        <h1 className="screen-title">{m.assets}</h1>
-        <Button variant="primary" icon={Plus} onClick={() => setEditorOpen(true)}>
-          {m.addAsset}
-        </Button>
+        <span aria-hidden="true" />
+        <h1 className="asset-title">{m.assets}</h1>
+        <Button variant="ghost" icon={Plus} aria-label={m.addAsset} onClick={() => setEditorOpen(true)} />
       </header>
       {state.offline && <OfflineBanner />}
       {!summary && state.error ? (
@@ -71,7 +70,9 @@ export default function AssetsScreen() {
             </div>
             <div>
               <dt>{m.debts}</dt>
-              <dd className="num">{formatWon(summary.totals.debts)}</dd>
+              <dd className="num" data-kind="debt">
+                {formatWon(summary.totals.debts)}
+              </dd>
             </div>
             <div>
               <dt>{m.netWorth}</dt>
@@ -83,7 +84,10 @@ export default function AssetsScreen() {
             if (!assets.length) return null;
             return (
               <section className="asset-section" key={kind}>
-                <h2 className="asset-section-title">{LABELS[kind]}</h2>
+                <h2 className="asset-section-title">
+                  <span>{LABELS[kind]}</span>
+                  <span className="num">{formatWon(assets.reduce((sum, asset) => sum + asset.balance, 0))}</span>
+                </h2>
                 <div className="asset-list">
                   {assets.map((asset) => (
                     <div key={asset.id}>
