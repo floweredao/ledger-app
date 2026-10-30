@@ -66,7 +66,7 @@ export const SOURCE_LABEL: Readonly<Record<Source, string>> = {
   },
 };
 
-const KEYBOARD: Readonly<Record<string, KeypadKey>> = {
+const KEYBOARD: Readonly<Record<string, CalcKey>> = {
   "0": "0",
   "1": "1",
   "2": "2",
@@ -78,14 +78,78 @@ const KEYBOARD: Readonly<Record<string, KeypadKey>> = {
   "8": "8",
   "9": "9",
   Backspace: "backspace",
+  "+": "+",
+  "-": "−",
+  "*": "×",
+  "/": "÷",
 };
 
-export const keypadKeyFor = (keyboardKey: string): KeypadKey | undefined => KEYBOARD[keyboardKey];
+export const keypadKeyFor = (keyboardKey: string): CalcKey | undefined => KEYBOARD[keyboardKey];
 
 export function pressKey(amount: string, key: KeypadKey): string {
   if (key === "backspace") return amount.slice(0, -1);
   const next = `${amount}${key}`.replace(/^0+/, "");
   return Number(next) > MAX_AMOUNT ? amount : next;
+}
+
+export type CalcOperator = "+" | "−" | "×" | "÷";
+export type CalcKey = KeypadKey | CalcOperator | "clear";
+const OPERATORS: readonly string[] = ["+", "−", "×", "÷"];
+const isOperator = (char: string | undefined): char is CalcOperator => char !== undefined && OPERATORS.includes(char);
+
+export const hasOperator = (expression: string): boolean => [...expression].some(isOperator);
+
+/** Edits the keypad expression ("8000+3500"); an operator after an operator replaces it, numbers drop leading zeros. */
+export function pressCalcKey(expression: string, key: CalcKey): string {
+  if (key === "clear") return "";
+  if (key === "backspace") return expression.slice(0, -1);
+  if (isOperator(key)) {
+    if (expression === "") return "";
+    return isOperator(expression.at(-1)) ? `${expression.slice(0, -1)}${key}` : `${expression}${key}`;
+  }
+  const start = Math.max(...OPERATORS.map((op) => expression.lastIndexOf(op))) + 1;
+  // The first number drops every leading zero (as the plain amount does); later ones keep a single 0 so ÷0 can be typed.
+  const number = `${expression.slice(start)}${key}`.replace(start === 0 ? /^0+/ : /^0+(?=\d)/, "");
+  if (Number(number) > MAX_AMOUNT) return expression;
+  return `${expression.slice(0, start)}${number}`;
+}
+
+export type Evaluation =
+  | { readonly ok: true; readonly value: number }
+  | { readonly ok: false; readonly reason: "divide_by_zero" | "not_positive" | "too_large" };
+
+/** × and ÷ before + and −, left to right; the result is rounded to whole won. A trailing operator is ignored. */
+export function evaluateExpression(expression: string): Evaluation {
+  const trimmed = isOperator(expression.at(-1)) ? expression.slice(0, -1) : expression;
+  const tokens = trimmed.split(/([+−×÷])/).filter((token) => token !== "");
+  const terms: number[] = [];
+  let sign = 1;
+  let term: number | null = null;
+  let pending: CalcOperator | null = null;
+  for (const token of tokens) {
+    if (isOperator(token)) {
+      if (token === "+" || token === "−") {
+        if (term !== null) terms.push(sign * term);
+        sign = token === "+" ? 1 : -1;
+        term = null;
+        pending = null;
+      } else pending = token;
+      continue;
+    }
+    const value = Number(token);
+    if (term === null || pending === null) term = value;
+    else if (pending === "×") term *= value;
+    else {
+      if (value === 0) return { ok: false, reason: "divide_by_zero" };
+      term /= value;
+    }
+    pending = null;
+  }
+  if (term !== null) terms.push(sign * term);
+  const result = Math.round(terms.reduce((sum, value) => sum + value, 0));
+  if (result <= 0) return { ok: false, reason: "not_positive" };
+  if (result > MAX_AMOUNT) return { ok: false, reason: "too_large" };
+  return { ok: true, value: result };
 }
 
 export const amountOf = (draft: EntryDraft): number => (draft.amount === "" ? 0 : Number(draft.amount));

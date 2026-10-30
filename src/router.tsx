@@ -6,6 +6,8 @@ export type RouteName =
   | "ledger"
   | "calendar"
   | "monthly"
+  | "summary"
+  | "memo"
   | "search"
   | "stats"
   | "budget"
@@ -31,6 +33,8 @@ const ROUTES: readonly (readonly [pattern: string, name: RouteName])[] = [
   ["/", "ledger"],
   ["/calendar", "calendar"],
   ["/monthly", "monthly"],
+  ["/summary", "summary"],
+  ["/memo", "memo"],
   ["/search", "search"],
   ["/stats", "stats"],
   ["/budget", "budget"],

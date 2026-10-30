@@ -11,14 +11,14 @@ import { invalidate, useApi } from "../../api/hooks";
 import { isPendingTransaction } from "../../api/outbox";
 import { openEntry } from "../../app/entry-bridge";
 import { calendarMonthFilter } from "../../app/periods";
-import { rowCategoryLabel, TRANSFER_ICON, transferRoute } from "../../app/transaction-label";
+import { categoryPath, TRANSFER_ICON, transferRoute } from "../../app/transaction-label";
 import { AmountText } from "../../components/AmountText";
 import { Button } from "../../components/Button";
 import { CategoryIcon } from "../../components/CategoryIcon";
 import { EmptyState } from "../../components/EmptyState";
-import { Badge, ListRow } from "../../components/ListRow";
+import { Badge } from "../../components/ListRow";
 import { Skeleton } from "../../components/Skeleton";
-import { formatNumber, formatSigned, formatWeekday } from "../../i18n/format";
+import { formatNumber, formatWeekday, formatWon } from "../../i18n/format";
 import { useSelectedMonth } from "../../router";
 
 type TransactionResponse = { readonly items: readonly Transaction[] };
@@ -68,16 +68,27 @@ function DaySection({
 }) {
   const m = useMessages(ledgerMessages);
   const c = useMessages(common);
+  const today = group.date === kstDate();
+  const dayIncome = formatWon(group.income);
+  // A refund-only day returned money: show it as +, never as a negative expense.
+  const dayExpense = group.expense < 0 ? `+${formatWon(-group.expense)}` : formatWon(group.expense);
   return (
     <section className="daily-day" aria-label={dateLabel(group.date)}>
       <header className="daily-day-header">
-        <h2>{dateLabel(group.date)}</h2>
-        <div className="daily-day-totals">
-          <span>
-            {c.income} {formatSigned("income", group.income)}
+        <h2 className="daily-day-date">
+          <span className="daily-day-number num">{Number(group.date.slice(8, 10))}</span>
+          <span className="daily-day-weekday" data-today={today || undefined}>
+            {formatWeekday(group.date)}
           </span>
-          <span>
-            {c.expense} {formatSigned("expense", group.expense)}
+        </h2>
+        <div className="daily-day-totals num">
+          <span data-kind="income">
+            <span className="sr-only">{m.dayTotal(c.income, dayIncome)}</span>
+            <span aria-hidden="true">{dayIncome}</span>
+          </span>
+          <span data-kind="expense">
+            <span className="sr-only">{m.dayTotal(c.expense, dayExpense)}</span>
+            <span aria-hidden="true">{dayExpense}</span>
           </span>
         </div>
       </header>
@@ -95,8 +106,11 @@ function DaySection({
               : null;
           const assetName = transaction.asset_id ? assets.get(transaction.asset_id) : undefined;
           const route = transferRoute(transaction, (id) => assets.get(id));
-          const categoryLabel = rowCategoryLabel(transaction.category_id, (id) => categories.get(id), title);
-          const subtitle = [categoryLabel, transaction.memo, route ?? assetName ?? transaction.src_account ?? undefined]
+          const categoryLabel =
+            transaction.type === "transfer"
+              ? c.transfer
+              : (categoryPath(transaction.category_id, (id) => categories.get(id)) ?? m.noCategory);
+          const subtitle = [route ?? assetName ?? transaction.src_account ?? undefined, transaction.memo]
             .filter(Boolean)
             .join(" · ");
           const badges = (
@@ -113,35 +127,38 @@ function DaySection({
             </span>
           );
           return (
-            <ListRow
+            <button
               key={transaction.id}
-              leading={
+              type="button"
+              className="ledger-row"
+              onClick={() => openEntry({ id: transaction.id })}
+            >
+              <span className="ledger-row-category">
                 <CategoryIcon
+                  size="sm"
                   icon={category?.icon ?? (transaction.type === "transfer" ? TRANSFER_ICON : undefined)}
                   color={category?.color}
                 />
-              }
-              title={title}
-              subtitle={subtitle || undefined}
-              badges={badges}
-              trailing={
-                <span className="daily-row-amount">
-                  {transaction.krw_status === "pending" && transaction.amount === 0 && foreignAmount ? (
-                    <span className="num">{foreignAmount}</span>
-                  ) : (
-                    <>
-                      <AmountText
-                        type={transaction.type}
-                        amount={transaction.amount}
-                        isRefund={transaction.is_refund}
-                      />
-                      {foreignAmount ? <span className="daily-row-foreign num">{foreignAmount}</span> : null}
-                    </>
-                  )}
+                <span className="ledger-row-category-name">{categoryLabel}</span>
+              </span>
+              <span className="ledger-row-text">
+                <span className="ledger-row-title">{title}</span>
+                <span className="ledger-row-subtitle">
+                  {badges}
+                  {subtitle}
                 </span>
-              }
-              onClick={() => openEntry({ id: transaction.id })}
-            />
+              </span>
+              <span className="daily-row-amount">
+                {transaction.krw_status === "pending" && transaction.amount === 0 && foreignAmount ? (
+                  <span className="num">{foreignAmount}</span>
+                ) : (
+                  <>
+                    <AmountText type={transaction.type} amount={transaction.amount} isRefund={transaction.is_refund} />
+                    {foreignAmount ? <span className="daily-row-foreign num">{foreignAmount}</span> : null}
+                  </>
+                )}
+              </span>
+            </button>
           );
         })}
       </div>

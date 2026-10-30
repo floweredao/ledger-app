@@ -18,10 +18,10 @@ test("ledger follows English system language without Korean UI copy", async () =
   clearMemoryCache();
   history.replaceState(null, "", "/monthly?year=2026");
   globalThis.fetch = Object.assign(
-    async () =>
-      new Response(JSON.stringify({ buckets: [] }), {
-        headers: { "Content-Type": "application/json" },
-      }),
+    async (input: RequestInfo | URL) =>
+      String(input).includes("stats/trend")
+        ? new Response(JSON.stringify({ buckets: [] }), { headers: { "Content-Type": "application/json" } })
+        : Response.json({ items: [], next_cursor: null }),
     { preconnect: originalFetch.preconnect },
   );
   // When the screen is rendered.

@@ -166,7 +166,8 @@ export default function SearchScreen() {
     };
   }, [route.query]);
   const [draft, setDraft] = useState<SearchFilters>(EMPTY_FILTERS);
-  const [sheetOpen, setSheetOpen] = useState(false);
+  // The ledger top bar's filter button links here with `filters=1` to open the filter sheet directly.
+  const [sheetOpen, setSheetOpen] = useState(route.query.get("filters") === "1");
   const [filterError, setFilterError] = useState("");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");

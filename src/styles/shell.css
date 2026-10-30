@@ -75,36 +75,12 @@
   border-top: 1px solid var(--border);
 }
 
-.tabbar-controls {
+.tabbar-list {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   height: var(--tabbar-h);
   max-width: var(--content-max-w);
   margin-inline: auto;
-}
-
-.tabbar-controls > nav {
-  grid-column: 1 / -1;
-  grid-row: 1;
-}
-
-.tabbar-list {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  height: 100%;
-}
-
-.tabbar-list > li:nth-child(3) {
-  grid-column: 4;
-}
-
-.tabbar-list > li:nth-child(4) {
-  grid-column: 5;
-}
-
-.tabbar-controls > .tab-add {
-  grid-column: 3;
-  grid-row: 1;
 }
 
 .tab {
@@ -136,7 +112,7 @@
 }
 
 .tab[aria-current="page"] {
-  color: var(--text);
+  color: var(--accent);
   font-weight: var(--weight-bold);
 }
 
@@ -148,20 +124,51 @@
   background: var(--wash);
 }
 
-.tab-add-circle {
+/* Floating record button: above the tab bar and safe area, never part of the nav. */
+.record-fab {
+  position: fixed;
+  right: max(var(--space-4), var(--safe-right));
+  bottom: calc(var(--tabbar-h) + var(--safe-bottom) + var(--space-4));
+  z-index: var(--z-tabbar);
   display: grid;
   place-items: center;
-  width: var(--hit-min);
-  height: var(--hit-min);
+  width: var(--fab-size);
+  height: var(--fab-size);
   border-radius: var(--radius-pill);
   background: var(--accent);
   color: var(--accent-contrast);
-  box-shadow: var(--shadow-1);
+  box-shadow: var(--shadow-2);
   transition: transform var(--dur-fast) ease;
 }
 
-.tab-add:active .tab-add-circle {
+.record-fab:active {
   transform: scale(0.94);
+}
+
+.record-fab:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 3px;
+}
+
+/* The last row must scroll clear of the floating button. */
+.app-shell[data-fab] .app-main {
+  padding-bottom: calc(
+    var(--tabbar-h) +
+    var(--safe-bottom) +
+    var(--fab-size) +
+    var(--space-8) +
+    var(--toast-clearance, 0px)
+  );
+}
+
+@media (min-width: 900px) {
+  .record-fab {
+    display: none;
+  }
+
+  .app-shell[data-fab] .app-main {
+    padding-bottom: calc(var(--space-12) + var(--toast-clearance, 0px));
+  }
 }
 
 @media (min-width: 900px) {
@@ -590,6 +597,11 @@
   color: var(--cat-glyph);
 }
 
+.category-icon[data-size="sm"] {
+  width: var(--icon-tile-sm);
+  height: var(--icon-tile-sm);
+}
+
 /* ---------- List row ---------- */
 .list-row {
   display: flex;
@@ -920,6 +932,81 @@ html.sheet-open {
   animation-name: fade-out;
 }
 
+/* Full-screen form page below 900px (the entry form); the 900px+ rules below turn it back into a dialog. */
+.sheet-root[data-variant="page"] .sheet-panel {
+  height: calc(100dvh - var(--kb-inset, 0px));
+  max-height: none;
+  padding-top: var(--safe-top);
+  border-radius: 0;
+  box-shadow: none;
+  animation-name: page-in;
+}
+
+.sheet-root[data-variant="page"][data-state="closing"] .sheet-panel {
+  animation-name: page-out;
+}
+
+.sheet-page-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  min-height: var(--topbar-h);
+  padding: 0 var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.sheet-page-header .sheet-title {
+  text-align: center;
+}
+
+.sheet-back {
+  display: inline-flex;
+  align-items: center;
+  justify-self: start;
+  gap: var(--space-1);
+  min-width: var(--hit-min);
+  min-height: var(--hit-min);
+  padding-inline-end: var(--space-2);
+  border-radius: var(--radius-input);
+  color: var(--text);
+  font-size: var(--text-md);
+}
+
+.sheet-back:hover {
+  background: var(--wash);
+}
+
+.sheet-page-action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (min-width: 900px) {
+  .sheet-root[data-variant="page"] .sheet-panel {
+    height: auto;
+    max-height: calc(100dvh - var(--space-8) * 2);
+    padding-top: 0;
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-2);
+    animation-name: dialog-in;
+  }
+
+  .sheet-root[data-variant="page"][data-state="closing"] .sheet-panel {
+    animation-name: fade-out;
+  }
+}
+
+@keyframes page-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes page-out {
+  to {
+    transform: translateX(100%);
+  }
+}
+
 @media (min-width: 900px) {
   .sheet-root {
     align-items: center;
@@ -979,6 +1066,14 @@ html.sheet-open {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .sheet-root[data-variant="page"] .sheet-panel {
+    animation-name: fade-in;
+  }
+
+  .sheet-root[data-variant="page"][data-state="closing"] .sheet-panel {
+    animation-name: fade-out;
+  }
+
   .sheet-panel,
   .sheet-root[data-state="closing"] .sheet-panel {
     animation-name: fade-in;
