@@ -1,7 +1,9 @@
+/* Entry page: 수입/지출/이체, labelled underline rows, and one docked panel (keypad, category, asset, favorites). */
 .entry-form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-4);
+  min-height: 100%;
 }
 
 .entry-badges {
@@ -27,43 +29,202 @@
   font-size: var(--text-sm);
 }
 
-.entry-amount-block {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--space-1);
+.entry-types {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
 }
 
-.entry-amount {
-  display: block;
-  width: 100%;
-  padding: var(--space-2) var(--space-1);
+.entry-type {
+  display: grid;
+  place-items: center;
+  min-height: var(--hit-min);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-input);
-  font-size: var(--text-display);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: border-color var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+
+.entry-type[data-selected] {
+  border-color: var(--accent);
+  background: var(--surface);
+  color: var(--accent);
   font-weight: var(--weight-bold);
-  line-height: var(--leading-tight);
-  letter-spacing: var(--tracking-display);
-  text-align: right;
-  overflow-wrap: anywhere;
 }
 
-.entry-amount[data-empty] {
-  color: var(--text-3);
-}
-
-.entry-amount:focus-visible {
+.entry-type:has(input:focus-visible) {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.keypad {
+.entry-saved {
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+.entry-saved:empty {
+  display: none;
+}
+
+.entry-rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.entry-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 3.5rem minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  min-height: var(--row-h);
+}
+
+.entry-row-label {
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+.entry-row-control {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  padding-block: var(--space-1);
+  border-bottom: 1px solid var(--border-strong);
+}
+
+.entry-row[data-active] .entry-row-control,
+.entry-row-control:focus-within {
+  border-bottom: 2px solid var(--accent);
+}
+
+.entry-row-control > .input {
+  min-height: var(--hit-min);
+  padding-inline: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.entry-row-control > .input:focus-visible,
+.entry-datetime .input:focus-visible {
+  outline: none;
+}
+
+.entry-datetime {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--space-3);
+}
+
+.entry-datetime .input {
+  min-width: 0;
+  min-height: var(--hit-min);
+  padding-inline: 0;
+  border: 0;
+  background: transparent;
+}
+
+.entry-value {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: var(--hit-min);
+  color: var(--text);
+  font-size: var(--text-md);
+  text-align: start;
+  overflow-wrap: anywhere;
+}
+
+.entry-value:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-input);
+}
+
+.entry-amount {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+}
+
+.entry-placeholder {
+  color: var(--text-3);
+  font-weight: var(--weight-regular);
+}
+
+.entry-category-value {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.entry-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--space-2);
 }
 
-.keypad[hidden] {
-  display: none;
+.entry-actions .btn {
+  padding-inline: var(--space-2);
+}
+
+.entry-favorites-toggle {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: var(--space-2);
+  min-height: var(--hit-min);
+  padding-inline: var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.entry-favorites-toggle[aria-expanded="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* The panel docks to the bottom of the scrolling page body, above the save buttons. */
+.entry-panel {
+  position: sticky;
+  bottom: calc(var(--space-4) * -1);
+  z-index: var(--z-sticky);
+  margin: auto calc(var(--space-5) * -1) calc(var(--space-4) * -1);
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.entry-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: var(--hit-min);
+  padding-inline: var(--space-4) var(--space-1);
+  background: var(--text);
+  color: var(--bg);
+}
+
+.entry-panel-header h3 {
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.entry-panel-header .icon-btn {
+  color: var(--bg);
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--border);
 }
 
 .keypad-key {
@@ -71,66 +232,93 @@
   align-items: center;
   justify-content: center;
   min-height: var(--key-h);
-  border-radius: var(--radius-input);
-  background: var(--surface-2);
+  background: var(--surface);
   color: var(--text);
   font-size: var(--text-lg);
-  font-weight: var(--weight-semibold);
+  font-weight: var(--weight-medium);
   transition: background-color var(--dur-fast) ease;
   touch-action: manipulation;
+}
+
+.keypad-operator {
+  background: var(--surface-2);
+}
+
+.keypad-confirm {
+  grid-column: span 2;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: var(--weight-bold);
 }
 
 .keypad-key:active {
   background: var(--wash-strong);
 }
 
+.keypad-confirm:active {
+  background: var(--accent);
+  opacity: 0.85;
+}
+
 .keypad-key:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
-.category-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
-  gap: var(--space-1);
-}
-
-.category-tile {
+.entry-picker,
+.entry-fieldset.entry-picker {
   display: flex;
   flex-direction: column;
+  gap: var(--space-3);
+  max-height: 45dvh;
+  overflow-y: auto;
+  padding: var(--space-3) var(--space-5) var(--space-4);
+}
+
+.picker-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-block-start: 1px solid var(--border);
+  border-inline-start: 1px solid var(--border);
+}
+
+.picker-tile {
+  display: flex;
   align-items: center;
-  gap: var(--space-1);
+  justify-content: center;
+  gap: var(--space-2);
   min-width: 0;
-  min-height: var(--hit-min);
-  padding: var(--space-2) var(--space-1);
-  border-radius: var(--radius-input);
-  color: var(--text-2);
-  font-size: var(--text-xs);
+  min-height: var(--row-h);
+  padding: var(--space-2);
+  border-block-end: 1px solid var(--border);
+  border-inline-end: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-sm);
   transition: background-color var(--dur-fast) ease;
 }
 
-.category-tile:hover {
+.picker-tile:hover {
   background: var(--wash);
 }
 
-.category-tile[data-expanded] {
-  background: var(--wash);
-  color: var(--text);
+.picker-tile[data-expanded] {
+  background: var(--surface-2);
 }
 
-.category-tile[aria-pressed="true"] {
-  background: var(--wash-strong);
-  color: var(--text);
+.picker-tile[aria-pressed="true"] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 2px var(--accent);
   font-weight: var(--weight-semibold);
 }
 
-.category-tile:focus-visible {
+.picker-tile:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
-.category-tile-name {
-  max-width: 100%;
+.picker-tile-name {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -146,12 +334,6 @@
 .category-children > legend {
   margin-bottom: var(--space-2);
   padding: 0;
-}
-
-.entry-datetime {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3);
 }
 
 .entry-toggle {

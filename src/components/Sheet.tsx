@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { ChevronLeft, X } from "lucide-react";
 import {
   type AnimationEvent,
   type ReactNode,
@@ -30,8 +30,12 @@ export type SheetProps = {
   readonly description?: string;
   readonly children: ReactNode;
   readonly footer?: ReactNode;
-  /** `sheet`: bottom sheet below 900px, centred dialog above. `dialog`: always centred. */
-  readonly variant?: "sheet" | "dialog";
+  /** `sheet`: bottom sheet below 900px, centred dialog above. `dialog`: always centred. `page`: full screen below 900px with a back button, centred dialog above. */
+  readonly variant?: "sheet" | "dialog" | "page";
+  /** Label of the `page` back button: the screen it returns to. */
+  readonly backLabel?: string;
+  /** Extra header control, right of the title (e.g. favorites). */
+  readonly headerAction?: ReactNode;
   readonly role?: "dialog" | "alertdialog";
   readonly initialFocusRef?: RefObject<HTMLElement | null>;
 };
@@ -62,6 +66,8 @@ function SheetPanel({
   variant = "sheet",
   role = "dialog",
   initialFocusRef,
+  backLabel,
+  headerAction,
   onExited,
 }: SheetProps & { readonly onExited: () => void }) {
   const c = useMessages(common);
@@ -82,7 +88,8 @@ function SheetPanel({
     const panel = panelRef.current;
     if (panel) {
       const body = panel.querySelector<HTMLElement>(".sheet-body");
-      const target = initialFocusRef?.current ?? (body ? focusables(body)[0] : undefined) ?? panel;
+      const preferred = body?.querySelector<HTMLElement>("[data-autofocus]") ?? undefined;
+      const target = initialFocusRef?.current ?? preferred ?? (body ? focusables(body)[0] : undefined) ?? panel;
       target.focus();
     }
     return () => {
@@ -183,12 +190,26 @@ function SheetPanel({
           onPointerCancel={onPointerEnd}
         />
       ) : null}
-      <header className="sheet-header">
-        <h2 className="sheet-title" id={titleId}>
-          {title}
-        </h2>
-        <IconButton label={c.close} icon={X} onClick={onClose} />
-      </header>
+      {variant === "page" ? (
+        <header className="sheet-header sheet-page-header">
+          <button type="button" className="sheet-back" aria-label={c.close} onClick={onClose}>
+            <ChevronLeft aria-hidden="true" size={24} strokeWidth={2} />
+            {backLabel ? <span aria-hidden="true">{backLabel}</span> : null}
+          </button>
+          <h2 className="sheet-title" id={titleId}>
+            {title}
+          </h2>
+          <div className="sheet-page-action">{headerAction}</div>
+        </header>
+      ) : (
+        <header className="sheet-header">
+          <h2 className="sheet-title" id={titleId}>
+            {title}
+          </h2>
+          {headerAction}
+          <IconButton label={c.close} icon={X} onClick={onClose} />
+        </header>
+      )}
       {description ? (
         <p className="sheet-description" id={descriptionId}>
           {description}

@@ -69,12 +69,19 @@ afterEach(() => {
 });
 
 const mutations = () => calls.filter((call) => call.method !== "GET");
-const amountText = () => screen.getByLabelText("금액").textContent;
+const field = (label: string) => screen.getByRole("button", { name: new RegExp(`^${label}(, |$)`) });
+const amountText = () => field("금액").textContent;
 const press = (...keys: string[]) => {
   for (const key of keys) fireEvent.click(screen.getByRole("button", { name: key }));
 };
+/** Opens the entry panel behind a row (금액, 분류, 자산, 보내는 자산, 받는 자산) unless it is already open. */
+const panel = (label: string) => {
+  const button = field(label);
+  if (button.getAttribute("aria-expanded") !== "true") fireEvent.click(button);
+};
+const valueOf = (label: string) => field(label).textContent;
 
-async function open(request: Parameters<typeof openEntry>[0] = {}, ready = "식비") {
+async function open(request: Parameters<typeof openEntry>[0] = {}, ready = request.id ? "복사하기" : "확인") {
   const paths = ["categories", "assets", "settings", "templates", "merchant-rules", "transactions"];
   if (request.id) paths.push(`transactions/${request.id}`);
   for (const path of paths) reads.set(path, Promise.withResolvers<void>());
@@ -124,7 +131,7 @@ describe("new entry", () => {
     fireEvent.click(screen.getByRole("button", { name: "닫기" }));
     await waitFor(() => expect(screen.queryByRole("dialog") === null).toBe(true));
     act(() => openEntry({}));
-    await screen.findByRole("button", { name: "식비" });
+    await screen.findByRole("button", { name: "확인" });
     expect(screen.getByRole("dialog").contains(document.activeElement)).toBe(true);
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "6" });
     expect(amountText()).toBe("6원");
@@ -140,7 +147,7 @@ describe("new entry", () => {
 
   test("save posts the typed amount, chosen child category, default asset and requested date", async () => {
     await open({ date: "2026-10-04" });
-    press("4", "5", "0", "0", "식비");
+    press("4", "5", "0", "0", "확인", "식비");
     fireEvent.click(await screen.findByRole("button", { name: "카페" }));
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
     await waitFor(() => expect(mutations()).toHaveLength(1));
@@ -206,13 +213,14 @@ describe("new entry", () => {
     expect(mutations()).toHaveLength(0);
   });
 
-  test("a favorite chip fills the form", async () => {
+  test("a favorite fills the form", async () => {
     await open();
+    fireEvent.click(screen.getByRole("button", { name: "자주사용" }));
     fireEvent.click(await screen.findByRole("button", { name: "샘플카페 아메리카노" }));
     expect(amountText()).toBe("4,500원");
     expect((screen.getByLabelText("내용") as HTMLInputElement).value).toBe("샘플카페");
-    expect((await screen.findByRole("button", { name: "카페" })).getAttribute("aria-pressed")).toBe("true");
-    expect(screen.getByRole("button", { name: "샘플카드" }).getAttribute("aria-pressed")).toBe("true");
+    expect(valueOf("분류")).toBe("식비 › 카페");
+    expect(valueOf("자산")).toBe("샘플카드");
   });
 
   test("a refund favorite remains a refund when saved from the entry sheet", async () => {
@@ -232,6 +240,7 @@ describe("new entry", () => {
     };
     try {
       await open();
+      fireEvent.click(screen.getByRole("button", { name: "자주사용" }));
       fireEvent.click(await screen.findByRole("button", { name: "샘플환불" }));
       fireEvent.click(screen.getByRole("button", { name: "저장" }));
       await waitFor(() => expect(mutations()).toHaveLength(1));
@@ -243,22 +252,100 @@ describe("new entry", () => {
 
   test("a merchant with a learned rule pre-selects its category", async () => {
     await open();
-    await screen.findByRole("button", { name: "샘플카페 아메리카노" });
     fireEvent.change(screen.getByLabelText("내용"), { target: { value: "샘플카페" } });
-    expect((await screen.findByRole("button", { name: "카페" })).getAttribute("aria-pressed")).toBe("true");
+    await waitFor(() => expect(valueOf("분류")).toBe("식비 › 카페"));
   });
 
-  test("즐겨찾기로 저장 posts a template built from the form", async () => {
+  test("saving the current form to 자주사용 posts a template built from it", async () => {
     await open();
     press("4", "5", "0", "0");
     fireEvent.change(screen.getByLabelText("내용"), { target: { value: "샘플분식" } });
-    fireEvent.click(screen.getByRole("button", { name: "즐겨찾기로 저장" }));
+    fireEvent.click(screen.getByRole("button", { name: "자주사용" }));
+    fireEvent.click(screen.getByRole("button", { name: "지금 내용을 자주사용에 저장" }));
     await waitFor(() => expect(mutations()).toHaveLength(1));
     expect(mutations()[0]?.url).toBe("/api/v1/templates");
     expect(mutations()[0]?.body).toMatchObject({
       name: "샘플분식",
       payload: { type: "expense", amount: 4500, merchant: "샘플분식", asset_id: "a-bank" },
     });
+  });
+});
+
+describe("guided entry", () => {
+  test("확인 opens 분류, a final category opens 자산, and an asset moves focus to 내용", async () => {
+    await open();
+    press("4", "5", "0", "0", "확인");
+    expect(screen.getByRole("region", { name: "분류" })).toBeTruthy();
+    press("교통");
+    expect(screen.queryByRole("region", { name: "분류" })).toBeNull();
+    expect(screen.getByRole("region", { name: "자산" })).toBeTruthy();
+    press("테스트통장");
+    expect(screen.queryByRole("region", { name: "자산" })).toBeNull();
+    expect(document.activeElement).toBe(screen.getByLabelText("내용"));
+    expect(valueOf("분류")).toBe("교통");
+    expect(valueOf("자산")).toBe("테스트통장");
+  });
+
+  test("a parent with children waits for the child, then advances", async () => {
+    await open();
+    press("1", "0", "0", "0", "확인", "식비");
+    expect(screen.getByRole("region", { name: "분류" })).toBeTruthy();
+    press("카페");
+    expect(screen.getByRole("region", { name: "자산" })).toBeTruthy();
+  });
+
+  test("the calculator saves 8000+3500 as 11,500원", async () => {
+    await open();
+    press("8", "0", "0", "0", "더하기", "3", "5", "00");
+    expect(amountText()).toBe("8,000 + 3,500");
+    press("확인");
+    expect(amountText()).toBe("11,500원");
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(mutations()).toHaveLength(1));
+    expect(mutations()[0]?.body).toMatchObject({ amount: 11500 });
+  });
+
+  test("saving an unevaluated 12000×3 sends 36,000원", async () => {
+    await open();
+    press("1", "2", "0", "00", "곱하기", "3");
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(mutations()).toHaveLength(1));
+    expect(mutations()[0]?.body).toMatchObject({ amount: 36000 });
+  });
+
+  test("division by zero blocks saving with an inline message", async () => {
+    await open();
+    press("5", "0", "0", "0", "나누기", "0");
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    expect(await screen.findByText("0으로 나눌 수 없어요")).toBeTruthy();
+    press("확인");
+    expect(mutations()).toHaveLength(0);
+  });
+
+  test("계속 saves, clears the amount and category, and keeps date and asset", async () => {
+    await open({ date: "2026-10-04" });
+    press("4", "5", "0", "0", "확인", "교통", "샘플카드");
+    fireEvent.click(screen.getByRole("button", { name: "계속" }));
+    await waitFor(() => expect(mutations()).toHaveLength(1));
+    expect(mutations()[0]?.body).toMatchObject({ amount: 4500, category_id: "c-transit", asset_id: "a-card" });
+    expect(await screen.findByText("1건 저장했어요. 다음 기록을 입력하세요.")).toBeTruthy();
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(amountText()).toBe("금액 입력");
+    expect(valueOf("분류")).toBe("선택해 주세요");
+    expect(valueOf("자산")).toBe("샘플카드");
+    expect((screen.getByLabelText("날짜") as HTMLInputElement).value).toBe("2026-10-04");
+    expect(screen.getByRole("region", { name: "금액" })).toBeTruthy();
+  });
+
+  test("복사하기 opens a new record with the same details dated now", async () => {
+    await open({ id: "tx1" });
+    fireEvent.click(screen.getByRole("button", { name: "복사하기" }));
+    await screen.findByRole("heading", { name: "복사한 기록" });
+    expect(amountText()).toBe("12,000원");
+    expect((screen.getByLabelText("내용") as HTMLInputElement).value).toBe("테스트마트");
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    await waitFor(() => expect(mutations()).toHaveLength(1));
+    expect(mutations()[0]).toMatchObject({ method: "POST", body: { amount: 12000, merchant: "테스트마트" } });
   });
 });
 
@@ -283,6 +370,7 @@ describe("custody transfers", () => {
     await open();
     fireEvent.click(screen.getByRole("radio", { name: "이체" }));
     press("5", "0", "0", "0");
+    press("확인");
     fireEvent.click(group("보내는 자산").getByRole("button", { name: "샘플보관금" }));
     fireEvent.click(group("받는 자산").getByRole("button", { name: "테스트통장" }));
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
@@ -305,7 +393,7 @@ describe("custody transfers", () => {
 
   test("one tap turns an imported income into a transfer from the custody asset", async () => {
     GETS["transactions/tx1"] = { ...row, type: "income", category_id: "c-salary" };
-    await open({ id: "tx1" }, "급여");
+    await open({ id: "tx1" });
     await waitFor(() => expect(amountText()).toBe("12,000원"));
     fireEvent.click(group("이체로 바꾸기").getByRole("button", { name: "샘플보관금" }));
     await waitFor(() => expect(mutations()).toHaveLength(1));
@@ -324,7 +412,7 @@ describe("custody transfers", () => {
     expect(screen.queryByRole("group", { name: "이체로 바꾸기" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "닫기" }));
     act(() => openEntry({}));
-    await waitFor(() => expect(screen.getByRole("button", { name: "식비" })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("button", { name: "확인" })).toBeTruthy());
     expect(screen.queryByRole("group", { name: "이체로 바꾸기" })).toBeNull();
     expect(mutations()).toHaveLength(0);
   });
@@ -376,6 +464,7 @@ describe("edit entry", () => {
     await open({ id: "tx1" });
     await waitFor(() => expect(amountText()).toBe("12,000원"));
     expect(screen.getByText("카카오뱅크 알림")).toBeTruthy();
+    panel("금액");
     press("지우기");
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
     await waitFor(() => expect(mutations()).toHaveLength(1));
@@ -395,8 +484,9 @@ describe("edit entry", () => {
       merchant: "잔액 조정",
       source: "manual",
     };
-    await open({ id: "adj" }, "삭제");
+    await open({ id: "adj" });
     await waitFor(() => expect(amountText()).toBe("12,000원"));
+    panel("금액");
     press("지우기");
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
     await waitFor(() => expect(mutations()).toHaveLength(1));
@@ -408,6 +498,7 @@ describe("edit entry", () => {
     await open({ id: "tx1" });
     await waitFor(() => expect(amountText()).toBe("12,000원"));
     expect(screen.queryByLabelText("같은 가게 지난 거래에도 적용")).toBeNull();
+    panel("분류");
     press("교통");
     fireEvent.click(screen.getByLabelText("같은 가게 지난 거래에도 적용"));
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
@@ -428,6 +519,7 @@ describe("edit entry", () => {
     await open({ id: "tx1" });
     await waitFor(() => expect(amountText()).toBe("12,000원"));
     fireEvent.click(screen.getByRole("radio", { name: "수입" }));
+    panel("분류");
     press("급여");
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
     await waitFor(() => expect(mutations()).toHaveLength(1));
@@ -549,6 +641,7 @@ describe("hidden and child categories", () => {
 
   test("a new entry offers neither hidden categories nor the children of a hidden parent", async () => {
     await open();
+    panel("분류");
     expect(screen.queryByRole("button", { name: "숨긴분류" })).toBeNull();
     press("식비");
     expect(screen.getByRole("button", { name: "카페" })).toBeTruthy();
@@ -559,6 +652,7 @@ describe("hidden and child categories", () => {
   test("editing a record on a hidden child keeps showing and keeping its category", async () => {
     GETS["transactions/tx1"] = { ...row, category_id: "c-snack" };
     await open({ id: "tx1" });
+    panel("분류");
     expect(screen.getByRole("button", { name: "숨긴간식" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.queryByRole("button", { name: "숨긴분류" })).toBeNull();
     fireEvent.change(screen.getByLabelText("메모"), { target: { value: "메모만 수정" } });
@@ -570,6 +664,7 @@ describe("hidden and child categories", () => {
   test("editing a record under a hidden parent shows that parent and its chosen child only", async () => {
     GETS["transactions/tx1"] = { ...row, category_id: "c-gone-sub" };
     await open({ id: "tx1" });
+    panel("분류");
     expect(screen.getByRole("button", { name: "숨긴분류" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "숨긴하위" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.queryByRole("button", { name: "숨긴간식" })).toBeNull();
@@ -577,6 +672,7 @@ describe("hidden and child categories", () => {
 
   test("a child category picked while editing is saved as the child id", async () => {
     await open({ id: "tx1" });
+    panel("분류");
     press("카페");
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
     await waitFor(() => expect(mutations()).toHaveLength(1));
