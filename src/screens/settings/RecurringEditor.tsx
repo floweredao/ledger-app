@@ -14,6 +14,7 @@ import { formatDisplayDate, formatWon } from "../../i18n/format";
 import { settingsMessages, validationMessage } from "./messages";
 import { PayloadFields, parsePayload, payloadDraft } from "./TemplatesEditor";
 import "./recurring.css";
+import { SubpageHeader } from "./SubpageHeader";
 
 /** Same start-anchored, clamped calendar recurrence as server/domain/recurring. */
 export function nextOccurrence(rule: RecurringRule): string | null {
@@ -85,8 +86,8 @@ export default function RecurringEditor() {
   }
   return (
     <section className="recurring-screen">
+      <SubpageHeader title={m.recurring} />
       <header className="recurring-header">
-        <h1>{m.recurring}</h1>
         <div className="recurring-actions">
           <Button
             disabled={disabled}

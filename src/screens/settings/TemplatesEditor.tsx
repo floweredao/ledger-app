@@ -21,6 +21,7 @@ import { common } from "../../i18n/common";
 import { formatWon } from "../../i18n/format";
 import { settingsMessages, validationMessage } from "./messages";
 import "./recurring.css";
+import { SubpageHeader } from "./SubpageHeader";
 
 const recordFromTemplate = api.useTemplate;
 
@@ -267,12 +268,14 @@ export default function TemplatesEditor() {
   }
   return (
     <section className="recurring-screen">
-      <header className="recurring-header">
-        <h1>{m.templates}</h1>
-        <Button icon={Plus} variant="primary" disabled={disabled} onClick={() => setEditing("new")}>
-          {c.add}
-        </Button>
-      </header>
+      <SubpageHeader
+        title={m.templates}
+        action={
+          <Button icon={Plus} variant="primary" disabled={disabled} onClick={() => setEditing("new")}>
+            {c.add}
+          </Button>
+        }
+      />
       {loading && !data && <p role="status">{m.loading}</p>}
       {Boolean(error) && (
         <div role="alert">

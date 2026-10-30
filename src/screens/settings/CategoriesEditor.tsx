@@ -12,6 +12,7 @@ import { common } from "../../i18n/common";
 import { categoriesMessages } from "./categories-messages";
 import { useDragReorder } from "./useDragReorder";
 import "./categories.css";
+import { SubpageHeader } from "./SubpageHeader";
 
 type Draft = {
   readonly category: Category | null;
@@ -288,7 +289,7 @@ export default function CategoriesEditor() {
   const parentOptions = draft ? roots.filter((root) => root.id !== draft.category?.id) : [];
   return (
     <div className="screen categories-editor">
-      <h1 className="screen-title">{m.title}</h1>
+      <SubpageHeader title={m.title} />
       <div className="category-toolbar">
         <div className="category-types">
           {(["expense", "income"] as const).map((value) => (
