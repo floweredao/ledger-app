@@ -57,7 +57,7 @@ function BudgetMeter({
 }) {
   return (
     <div
-      className={`budget-meter${over ? " budget-meter-over" : ""}`}
+      className={`budget-meter${over ? " budget-meter-over" : ""}${budget === null ? " budget-meter-unset" : ""}`}
       role="progressbar"
       aria-label={label}
       aria-valuemin={0}
@@ -191,7 +191,7 @@ export default function BudgetView() {
     <section className="budget-view" aria-labelledby="budget-heading">
       <header className="budget-header">
         <div>
-          <h2 className="section-title" id="budget-heading">
+          <h2 className="sr-only" id="budget-heading">
             {m.title}
           </h2>
           <p className="budget-range num">{rangeLabel}</p>

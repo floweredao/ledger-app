@@ -18,8 +18,11 @@
   gap: var(--space-3);
 }
 
+/* Month switcher centred under the tab title (편한가계부 period row); the range stays as a small line. */
 .budget-header {
-  flex-wrap: wrap;
+  flex-direction: column-reverse;
+  gap: var(--space-1);
+  text-align: center;
 }
 
 .budget-range,
@@ -85,7 +88,7 @@
 }
 
 .budget-total-message {
-  color: var(--accent);
+  color: var(--text);
   font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
 }
@@ -120,6 +123,11 @@
 
 .budget-meter-over > span {
   background: var(--danger);
+}
+
+/* Spending with no budget is a fact, not progress toward a limit: neutral fill, no accent. */
+.budget-meter-unset > span {
+  background: var(--text-3);
 }
 
 .budget-categories {
@@ -239,10 +247,6 @@
 }
 
 @media (min-width: 640px) {
-  .budget-header {
-    flex-wrap: nowrap;
-  }
-
   .budget-category-detail {
     flex-wrap: nowrap;
   }

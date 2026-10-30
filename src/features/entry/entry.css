@@ -45,7 +45,9 @@
   color: var(--text-2);
   font-weight: var(--weight-medium);
   cursor: pointer;
-  transition: border-color var(--dur-fast) ease, color var(--dur-fast) ease;
+  transition:
+    border-color var(--dur-fast) ease,
+    color var(--dur-fast) ease;
 }
 
 .entry-type[data-selected] {

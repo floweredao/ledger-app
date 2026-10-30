@@ -63,7 +63,10 @@ describe("MonthlyView", () => {
     globalThis.fetch = Object.assign(
       async (input: RequestInfo | URL) =>
         String(input).includes("stats/trend")
-          ? new Response(JSON.stringify({ buckets: [] }), { status: 200, headers: { "Content-Type": "application/json" } })
+          ? new Response(JSON.stringify({ buckets: [] }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            })
           : Response.json({ items: [], next_cursor: null }),
       { preconnect: originalFetch.preconnect },
     );
