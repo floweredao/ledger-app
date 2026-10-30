@@ -320,17 +320,19 @@ type Props = {
   readonly color: string | null | undefined;
   /** When set, the icon is announced; leave unset when the category name is shown next to it. */
   readonly label?: string;
+  readonly size?: "sm" | "md";
 };
 
-export function CategoryIcon({ icon, color, label }: Props) {
+export function CategoryIcon({ icon, color, label, size = "md" }: Props) {
   const Glyph = CATEGORY_ICONS[icon ?? ""] ?? CircleQuestionMark;
   return (
     <span
       className="category-icon"
+      data-size={size === "sm" ? "sm" : undefined}
       style={{ backgroundColor: categoryColor(color) }}
       {...(label ? { role: "img", "aria-label": label } : { "aria-hidden": true })}
     >
-      <Glyph aria-hidden="true" size={18} strokeWidth={2.25} />
+      <Glyph aria-hidden="true" size={size === "sm" ? 14 : 18} strokeWidth={2.25} />
     </span>
   );
 }
