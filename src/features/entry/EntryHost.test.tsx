@@ -79,7 +79,7 @@ const panel = (label: string) => {
   const button = field(label);
   if (button.getAttribute("aria-expanded") !== "true") fireEvent.click(button);
 };
-const valueOf = (label: string) => field(label).textContent;
+const fieldValue = (label: string) => field(label).textContent;
 
 async function open(request: Parameters<typeof openEntry>[0] = {}, ready = request.id ? "복사하기" : "확인") {
   const paths = ["categories", "assets", "settings", "templates", "merchant-rules", "transactions"];
@@ -219,8 +219,8 @@ describe("new entry", () => {
     fireEvent.click(await screen.findByRole("button", { name: "샘플카페 아메리카노" }));
     expect(amountText()).toBe("4,500원");
     expect((screen.getByLabelText("내용") as HTMLInputElement).value).toBe("샘플카페");
-    expect(valueOf("분류")).toBe("식비 › 카페");
-    expect(valueOf("자산")).toBe("샘플카드");
+    expect(fieldValue("분류")).toBe("식비 › 카페");
+    expect(fieldValue("자산")).toBe("샘플카드");
   });
 
   test("a refund favorite remains a refund when saved from the entry sheet", async () => {
@@ -253,7 +253,7 @@ describe("new entry", () => {
   test("a merchant with a learned rule pre-selects its category", async () => {
     await open();
     fireEvent.change(screen.getByLabelText("내용"), { target: { value: "샘플카페" } });
-    await waitFor(() => expect(valueOf("분류")).toBe("식비 › 카페"));
+    await waitFor(() => expect(fieldValue("분류")).toBe("식비 › 카페"));
   });
 
   test("saving the current form to 자주사용 posts a template built from it", async () => {
@@ -282,8 +282,8 @@ describe("guided entry", () => {
     press("테스트통장");
     expect(screen.queryByRole("region", { name: "자산" })).toBeNull();
     expect(document.activeElement).toBe(screen.getByLabelText("내용"));
-    expect(valueOf("분류")).toBe("교통");
-    expect(valueOf("자산")).toBe("테스트통장");
+    expect(fieldValue("분류")).toBe("교통");
+    expect(fieldValue("자산")).toBe("테스트통장");
   });
 
   test("a parent with children waits for the child, then advances", async () => {
@@ -331,8 +331,8 @@ describe("guided entry", () => {
     expect(await screen.findByText("1건 저장했어요. 다음 기록을 입력하세요.")).toBeTruthy();
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(amountText()).toBe("금액 입력");
-    expect(valueOf("분류")).toBe("선택해 주세요");
-    expect(valueOf("자산")).toBe("샘플카드");
+    expect(fieldValue("분류")).toBe("선택해 주세요");
+    expect(fieldValue("자산")).toBe("샘플카드");
     expect((screen.getByLabelText("날짜") as HTMLInputElement).value).toBe("2026-10-04");
     expect(screen.getByRole("region", { name: "금액" })).toBeTruthy();
   });
