@@ -21,9 +21,17 @@ import { navigate } from "../../router";
 import { AssetEditor } from "./AssetEditor";
 import { CardStatement } from "./CardStatement";
 import { assetsMessages } from "./messages";
+import { runningBalances } from "./running-balance";
 import "./assets.css";
 
-function AssetTransactions({ items }: { readonly items: readonly Transaction[] }) {
+function AssetTransactions({
+  items,
+  balances,
+}: {
+  readonly items: readonly Transaction[];
+  /** Balance right after each record, when known (the first page). */
+  readonly balances?: ReadonlyMap<string, number>;
+}) {
   const m = useMessages(assetsMessages);
   const c = useMessages(common);
   const categories = useApi<{ readonly items: readonly CategoryNode[] }>(paths.categories({ include_hidden: true }));
@@ -75,11 +83,18 @@ function AssetTransactions({ items }: { readonly items: readonly Transaction[] }
                   </>
                 }
                 trailing={
-                  item.krw_status === "pending" && item.amount === 0 && foreignAmount ? (
-                    <span className="num">{foreignAmount}</span>
-                  ) : (
-                    <AmountText type={item.type} amount={item.amount} isRefund={item.is_refund} />
-                  )
+                  <span className="asset-row-amount">
+                    {item.krw_status === "pending" && item.amount === 0 && foreignAmount ? (
+                      <span className="num">{foreignAmount}</span>
+                    ) : (
+                      <AmountText type={item.type} amount={item.amount} isRefund={item.is_refund} />
+                    )}
+                    {balances?.has(item.id) ? (
+                      <span className="asset-row-balance num">
+                        {m.balanceAfter(formatWon(balances.get(item.id) ?? 0))}
+                      </span>
+                    ) : null}
+                  </span>
                 }
                 onClick={() => openEntry({ id: item.id })}
               />
@@ -159,6 +174,21 @@ export default function AssetDetail({ id }: { readonly id: string }) {
     );
   const linked = summary.data?.assets.find((item) => item.id === asset.linked_asset_id);
   const baseline = asset.kind === "check_card" ? linked?.opening_date : asset.opening_date;
+  // A check card's list holds only its own records, so the account's running balance cannot be rebuilt from it.
+  const balances =
+    asset.kind === "check_card" || !tx.data
+      ? undefined
+      : runningBalances({
+          balance: asset.balance,
+          accountIds: new Set([
+            asset.id,
+            ...(summary.data?.assets ?? [])
+              .filter((item) => item.kind === "check_card" && item.linked_asset_id === asset.id)
+              .map((item) => item.id),
+          ]),
+          openingDate: asset.opening_date ?? null,
+          items: tx.data.items,
+        });
   return (
     <div className="screen asset-screen">
       <header className="asset-header">
@@ -216,7 +246,7 @@ export default function AssetDetail({ id }: { readonly id: string }) {
           <p className="asset-state">{m.emptyTransactions}</p>
         ) : (
           <>
-            <AssetTransactions items={tx.data.items} />
+            <AssetTransactions items={tx.data.items} {...(balances ? { balances } : {})} />
             <TransactionContinuation
               key={`${id}:${tx.data.next_cursor}`}
               query={{ asset_id: id }}
