@@ -52,13 +52,11 @@ describe("AppShell navigation", () => {
     render(<AppShell>본문</AppShell>);
     for (const name of ["하단 메뉴", "사이드 메뉴"]) {
       const nav = screen.getByRole("navigation", { name });
-      expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual([
-        "가계부",
-        "통계",
-        "예산",
-        "자산",
-        "더보기",
-      ]);
+      expect(
+        within(nav)
+          .getAllByRole("link")
+          .map((link) => link.textContent),
+      ).toEqual(["가계부", "통계", "예산", "자산", "더보기"]);
     }
     expect(screen.getByRole("main").textContent).toBe("본문");
   });

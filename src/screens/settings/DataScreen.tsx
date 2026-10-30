@@ -14,6 +14,7 @@ import { common } from "../../i18n/common";
 import { formatDisplayDate, formatNumber, formatWon } from "../../i18n/format";
 import { dataMessages } from "./data-messages";
 import "./data.css";
+import { SubpageHeader } from "./SubpageHeader";
 
 const ImportPreviewSchema = z.object({
   detected_format: z.enum(["ledger", "money_manager"]),
@@ -290,7 +291,7 @@ export default function DataScreen() {
 
   return (
     <div className="data-screen">
-      <h1>{m.title}</h1>
+      <SubpageHeader title={m.title} />
 
       <section className="data-section" aria-label={c.export}>
         <h2>{c.export}</h2>

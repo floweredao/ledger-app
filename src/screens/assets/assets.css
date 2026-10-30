@@ -7,6 +7,21 @@
   align-items: center;
   gap: var(--space-3);
 }
+/* Assets tab top bar: centred title like the ledger tab, add as an icon at the end. */
+.asset-screen > .asset-header:has(.asset-title) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  min-height: var(--topbar-h);
+  margin-inline: calc(var(--space-2) * -1);
+}
+.asset-header > .btn:last-child {
+  justify-self: end;
+}
+.asset-title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-title);
+}
 .asset-header .screen-title {
   flex: 1;
   margin: 0;
@@ -21,8 +36,12 @@
 }
 .asset-totals {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-3);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  text-align: center;
+}
+.asset-totals dd[data-kind="debt"] {
+  color: var(--text);
 }
 .asset-totals dd {
   margin: var(--space-2) 0 0;
@@ -39,9 +58,13 @@
   min-width: 0;
 }
 .asset-section-title {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
   color: var(--text-2);
   font-size: var(--text-sm);
-  margin: 0 0 var(--space-3);
+  font-weight: var(--weight-medium);
+  margin: 0 0 var(--space-2);
 }
 .asset-list {
   background: var(--surface);
@@ -116,10 +139,15 @@
   color: var(--danger);
 }
 
-@media (min-width: 600px) {
-  .asset-totals {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
+.asset-row-amount {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.asset-row-balance {
+  color: var(--text-3);
+  font-size: var(--text-xs);
 }
 
 .asset-row-amount {

@@ -1,0 +1,79 @@
+/* 설정 and its sub-screens: grouped full-width rows on bg, like the ledger tab's day groups. */
+.settings-topbar,
+.subpage-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  min-height: var(--topbar-h);
+  margin-inline: calc(var(--space-2) * -1);
+}
+
+.settings-title,
+.subpage-title {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-title);
+  text-align: center;
+}
+
+.settings-version {
+  justify-self: end;
+  padding-inline-end: var(--space-2);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+.subpage-action {
+  display: flex;
+  justify-content: flex-end;
+  padding-inline-end: var(--space-2);
+}
+
+.settings-group {
+  margin-inline: calc(max(var(--space-4), var(--safe-left)) * -1) calc(max(var(--space-4), var(--safe-right)) * -1);
+}
+
+.settings-group + .settings-group {
+  margin-top: var(--space-2);
+}
+
+.settings-group-title {
+  padding: var(--space-4) max(var(--space-4), var(--safe-left)) var(--space-2);
+  color: var(--text-3);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+}
+
+.settings-group-rows {
+  border-block: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.settings-group-rows > .list-row + .list-row {
+  border-top: 1px solid var(--border);
+}
+
+.settings-group-rows .list-row-leading {
+  display: grid;
+  place-items: center;
+  width: var(--space-6);
+  color: var(--text-2);
+}
+
+.settings-group-rows .list-row-trailing {
+  color: var(--text-3);
+}
+
+@media (min-width: 900px) {
+  .settings-topbar,
+  .subpage-header,
+  .settings-group {
+    margin-inline: 0;
+  }
+
+  .settings-group-rows {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+  }
+}

@@ -17,6 +17,7 @@ import { Button } from "../../components/Button";
 import { EmptyState } from "../../components/EmptyState";
 import { Field, Input, Select } from "../../components/Field";
 import { Skeleton } from "../../components/Skeleton";
+import { SubpageHeader } from "./SubpageHeader";
 
 type Draft = Omit<Settings, "month_start_day"> & { month_start_day: string };
 export default function Preferences() {
@@ -84,7 +85,7 @@ export default function Preferences() {
   if (!settings.data && settings.loading)
     return (
       <section className="screen">
-        <h1 className="screen-title">{m.title}</h1>
+        <SubpageHeader title={m.title} />
         <div role="status" aria-label={m.loading}>
           <Skeleton rows={3} label={m.loading} />
         </div>
@@ -93,110 +94,112 @@ export default function Preferences() {
   if (!settings.data)
     return (
       <section className="screen">
-        <h1 className="screen-title">{m.title}</h1>
+        <SubpageHeader title={m.title} />
         <EmptyState tone="error" title={m.loadError} action={<Button onClick={settings.reload}>{c.retry}</Button>} />
       </section>
     );
   return (
     <section className="screen">
-      <h1 className="screen-title">{m.title}</h1>
+      <SubpageHeader title={m.title} />
       <form className="preferences-form" onSubmit={submit} noValidate>
-        <Field
-          label={m.monthStart}
-          hint={m.monthStartHint}
-          {...(errors.month_start_day ? { error: errors.month_start_day } : {})}
-        >
-          {(control) => (
-            <Input
-              {...control}
-              type="number"
-              min={1}
-              max={28}
-              value={draft.month_start_day}
-              onChange={(event) => change("month_start_day", event.currentTarget.value)}
-            />
-          )}
-        </Field>
-        <Field label={m.name} hint={m.nameHint} {...(errors.owner_name ? { error: errors.owner_name } : {})}>
-          {(control) => (
-            <Input
-              {...control}
-              maxLength={40}
-              value={draft.owner_name}
-              onChange={(event) => change("owner_name", event.currentTarget.value)}
-            />
-          )}
-        </Field>
-        <Field label={m.theme}>
-          {(control) => (
-            <Select
-              {...control}
-              value={draft.theme}
-              onChange={(event) => {
-                const parsed = ThemeSchema.safeParse(event.currentTarget.value);
-                if (parsed.success) change("theme", parsed.data);
-              }}
-            >
-              <option value="system">{m.system}</option>
-              <option value="light">{m.light}</option>
-              <option value="dark">{m.dark}</option>
-            </Select>
-          )}
-        </Field>
-        <Field label={m.language} hint={m.languageHint}>
-          {(control) => (
-            <Select
-              {...control}
-              value={draft.language}
-              onChange={(event) => {
-                const parsed = LanguageSchema.safeParse(event.currentTarget.value);
-                if (parsed.success) change("language", parsed.data);
-              }}
-            >
-              <option value="system">{m.system}</option>
-              <option value="ko" lang="ko">
-                {m.korean}
-              </option>
-              <option value="en" lang="en">
-                {m.english}
-              </option>
-            </Select>
-          )}
-        </Field>
-        <Field label={m.firstView} hint={m.firstViewHint}>
-          {(control) => (
-            <Select
-              {...control}
-              value={draft.ledger_view}
-              onChange={(event) => {
-                const parsed = LedgerViewSchema.safeParse(event.currentTarget.value);
-                if (parsed.success) change("ledger_view", parsed.data);
-              }}
-            >
-              <option value="daily">{m.daily}</option>
-              <option value="calendar">{m.calendar}</option>
-              <option value="monthly">{m.monthly}</option>
-            </Select>
-          )}
-        </Field>
-        <Field label={m.defaultAsset} hint={m.defaultAssetHint}>
-          {(control) => (
-            <Select
-              {...control}
-              value={draft.default_asset_id ?? ""}
-              disabled={assets.loading && !assets.data}
-              onChange={(event) => change("default_asset_id", event.currentTarget.value || null)}
-            >
-              <option value="">{m.automatic}</option>
-              {(assets.data?.items ?? []).map((asset) => (
-                <option key={asset.id} value={asset.id}>
-                  {asset.name}
-                  {asset.hidden ? m.hiddenSuffix : ""}
+        <div className="preferences-rows">
+          <Field
+            label={m.monthStart}
+            hint={m.monthStartHint}
+            {...(errors.month_start_day ? { error: errors.month_start_day } : {})}
+          >
+            {(control) => (
+              <Input
+                {...control}
+                type="number"
+                min={1}
+                max={28}
+                value={draft.month_start_day}
+                onChange={(event) => change("month_start_day", event.currentTarget.value)}
+              />
+            )}
+          </Field>
+          <Field label={m.name} hint={m.nameHint} {...(errors.owner_name ? { error: errors.owner_name } : {})}>
+            {(control) => (
+              <Input
+                {...control}
+                maxLength={40}
+                value={draft.owner_name}
+                onChange={(event) => change("owner_name", event.currentTarget.value)}
+              />
+            )}
+          </Field>
+          <Field label={m.theme}>
+            {(control) => (
+              <Select
+                {...control}
+                value={draft.theme}
+                onChange={(event) => {
+                  const parsed = ThemeSchema.safeParse(event.currentTarget.value);
+                  if (parsed.success) change("theme", parsed.data);
+                }}
+              >
+                <option value="system">{m.system}</option>
+                <option value="light">{m.light}</option>
+                <option value="dark">{m.dark}</option>
+              </Select>
+            )}
+          </Field>
+          <Field label={m.language} hint={m.languageHint}>
+            {(control) => (
+              <Select
+                {...control}
+                value={draft.language}
+                onChange={(event) => {
+                  const parsed = LanguageSchema.safeParse(event.currentTarget.value);
+                  if (parsed.success) change("language", parsed.data);
+                }}
+              >
+                <option value="system">{m.system}</option>
+                <option value="ko" lang="ko">
+                  {m.korean}
                 </option>
-              ))}
-            </Select>
-          )}
-        </Field>
+                <option value="en" lang="en">
+                  {m.english}
+                </option>
+              </Select>
+            )}
+          </Field>
+          <Field label={m.firstView} hint={m.firstViewHint}>
+            {(control) => (
+              <Select
+                {...control}
+                value={draft.ledger_view}
+                onChange={(event) => {
+                  const parsed = LedgerViewSchema.safeParse(event.currentTarget.value);
+                  if (parsed.success) change("ledger_view", parsed.data);
+                }}
+              >
+                <option value="daily">{m.daily}</option>
+                <option value="calendar">{m.calendar}</option>
+                <option value="monthly">{m.monthly}</option>
+              </Select>
+            )}
+          </Field>
+          <Field label={m.defaultAsset} hint={m.defaultAssetHint}>
+            {(control) => (
+              <Select
+                {...control}
+                value={draft.default_asset_id ?? ""}
+                disabled={assets.loading && !assets.data}
+                onChange={(event) => change("default_asset_id", event.currentTarget.value || null)}
+              >
+                <option value="">{m.automatic}</option>
+                {(assets.data?.items ?? []).map((asset) => (
+                  <option key={asset.id} value={asset.id}>
+                    {asset.name}
+                    {asset.hidden ? m.hiddenSuffix : ""}
+                  </option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        </div>
         {assets.error && !assets.data ? <Button onClick={assets.reload}>{m.reloadAssets}</Button> : null}
         {saveError ? (
           <p className="field-error" role="alert">

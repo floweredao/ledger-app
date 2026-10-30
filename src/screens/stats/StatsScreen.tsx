@@ -10,8 +10,8 @@ export default function StatsScreen() {
   const budget = route.name === "budget";
   return (
     <div className="screen">
-      <header className="screen-header">
-        <h1 className="screen-title">{budget ? m.budget : m.statistics}</h1>
+      <header className="tab-topbar">
+        <h1 className="tab-topbar-title">{budget ? m.budget : m.statistics}</h1>
       </header>
       {budget ? <BudgetView /> : <StatsView />}
     </div>
