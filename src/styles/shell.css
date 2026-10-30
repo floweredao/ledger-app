@@ -547,9 +547,12 @@
   color: var(--income);
 }
 
-.amount[data-kind="expense"],
-.amount[data-kind="transfer"] {
+.amount[data-kind="expense"] {
   color: var(--expense);
+}
+
+.amount[data-kind="transfer"] {
+  color: var(--text);
 }
 
 .amount[data-kind="refund"] {
