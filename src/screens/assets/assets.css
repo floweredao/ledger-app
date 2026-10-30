@@ -121,3 +121,14 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+.asset-row-amount {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.asset-row-balance {
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
