@@ -95,6 +95,8 @@ test("the actual server injects a working, idempotent importer into the sync API
         const second = await fetch(`${base}/api/v1/sync/run`, { method: "POST", headers, signal });
         expect(second.status).toBe(200);
         expect((await second.json()).inserted).toBe(0);
+        const status = await fetch(`${base}/api/v1/sync/status`, { headers, signal });
+        expect(await status.json()).toMatchObject({ configured: true, last_error: null });
       },
     );
     database = new Database(join(dataDir, "ledger.sqlite"), { readonly: true });
@@ -118,7 +120,7 @@ test("without LEDGER_MODULE the server runs with ingestion turned off", async ()
         expect(run.status).toBe(503);
         expect((await run.json()).error.code).toBe("not_available");
         const status = await fetch(`${base}/api/v1/sync/status`, { headers, signal });
-        expect(await status.json()).toMatchObject({ last_run_at: null, last_error: null });
+        expect(await status.json()).toMatchObject({ configured: false, last_run_at: null, last_error: null });
       },
     );
     database = new Database(join(dataDir, "ledger.sqlite"), { readonly: true });

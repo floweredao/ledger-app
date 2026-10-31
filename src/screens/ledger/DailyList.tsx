@@ -9,6 +9,7 @@ import type { Asset, Category, CategoryNode, Transaction } from "../../../shared
 import { api, paths } from "../../api/client";
 import { invalidate, useApi } from "../../api/hooks";
 import { isPendingTransaction } from "../../api/outbox";
+import { isApiError } from "../../api/transport";
 import { openEntry } from "../../app/entry-bridge";
 import { calendarMonthFilter } from "../../app/periods";
 import { categoryPath, TRANSFER_ICON, transferRoute } from "../../app/transaction-label";
@@ -199,8 +200,11 @@ export default function DailyList() {
       if (result.errors.length > 0) throw new Error("import_failed");
       invalidate("transactions");
       transactions.reload();
-    } catch {
-      setSyncError(true);
+    } catch (error) {
+      if (isApiError(error) && error.code === "not_available") {
+        invalidate("transactions");
+        transactions.reload();
+      } else setSyncError(true);
     } finally {
       setSyncing(false);
     }

@@ -311,7 +311,7 @@ CSV와 XLSX는 거래 전용이에요. 월별 메모는 이 파일에 넣지 않
 가져오기 전용 설정 `transfer_counterparties`(settings 표, 값은 `[{name, asset_id}]` JSON)가 있으면, 종류에 `이체`·`입금`이 들어간 새 거래 중 거래처에 `name`이 들어간 것을 그 `asset_id` 자산과의 이체로 넣어요(입금은 그 자산 → 계좌, 출금은 계좌 → 그 자산). 본인 이름(`owner_name`) 규칙이 먼저이고, 없는 자산을 가리키는 항목은 무시해요. `GET/PATCH /settings`에는 나오지 않고, 이미 들어온 거래는 다시 분류할 때(`owner_name` 변경)만 바뀌어요.
 
 ### `GET /sync/status`
-응답 `{last_run_at, last_result, last_error, next_run_at}`, 기록이 없으면 각각 null. `last_result`는 마지막 실행 결과(아래 형태), `last_error`는 `"import_failed"` 또는 null이에요.
+응답 `{configured, last_run_at, last_result, last_error, next_run_at}`. `configured`는 가져오기 모듈(`LEDGER_MODULE`)이 연결돼 있으면 true예요. 나머지는 기록이 없으면 각각 null. `last_result`는 마지막 실행 결과(아래 형태), `last_error`는 `"import_failed"` 또는 null이에요.
 
 ### `POST /sync/run`
 즉시 한 번 가져와요. 응답 `{inserted, merged, skipped, hidden, errors: string[]}`. 이미 실행 중이면 409를 내지 않고 그 실행이 끝나기를 기다려 같은 결과를 돌려줘요. 원본 모듈이 실패하면 숫자는 모두 0이고 `errors: ["import_failed"]`인 200 응답이에요. 가져오기 모듈이 연결되지 않은 앱에서는 503 `not_available`이에요.
