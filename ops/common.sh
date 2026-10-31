@@ -6,8 +6,13 @@ RT="$HOME/Library/Application Support/ledger-app"
 PLIST="$HOME/Library/LaunchAgents/local.ledger-app.plist"
 DOMAIN="gui/$(id -u)"
 SERVICE="$DOMAIN/local.ledger-app"
-MODULE_PATH="${LEDGER_MODULE:-$HOME/.local/share/ddolmeng-mode/bin/ledger.ts}"
-WATCH_PATH="${LEDGER_WATCH_DIR:-$HOME/.local/share/ddolmeng-mode/state/ledger}"
+# Ingestion is optional. Without LEDGER_MODULE / LEDGER_WATCH_DIR, keep what the installed agent already uses.
+installed_env() {
+  [[ -f "$PLIST" ]] || return 0
+  /usr/libexec/PlistBuddy -c "Print :EnvironmentVariables:$1" "$PLIST" 2>/dev/null || true
+}
+MODULE_PATH="${LEDGER_MODULE:-$(installed_env LEDGER_MODULE)}"
+WATCH_PATH="${LEDGER_WATCH_DIR:-$(installed_env LEDGER_WATCH_DIR)}"
 BUN_PATH="$(command -v bun)"
 [[ "$BUN_PATH" = /* && -x "$BUN_PATH" ]] || { echo "Absolute Bun executable required." >&2; exit 1; }
 export RT BUN_PATH MODULE_PATH WATCH_PATH

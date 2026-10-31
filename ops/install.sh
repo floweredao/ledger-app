@@ -8,7 +8,9 @@ check_repo_data
 STATE="$(serve_state)" # Refuse all conflicting 4340 configurations before writes.
 STATUS="$(tailscale status --json)" # Private shell variable, never logged.
 URL="$(printf '%s' "$STATUS" | "$BUN_PATH" "$REPO/ops/config.js" url)"
-[[ -r "$MODULE_PATH" && -d "$WATCH_PATH" ]] || fail "Read-only ledger module ($MODULE_PATH) and watch directory ($WATCH_PATH) required; set LEDGER_MODULE and LEDGER_WATCH_DIR."
+[[ -z "$MODULE_PATH" || -r "$MODULE_PATH" ]] || fail "LEDGER_MODULE ($MODULE_PATH) is not readable."
+[[ -z "$WATCH_PATH" || -d "$WATCH_PATH" ]] || fail "LEDGER_WATCH_DIR ($WATCH_PATH) is not a directory."
+if [[ -z "$MODULE_PATH" ]]; then echo "No LEDGER_MODULE set: installing with bank history ingestion turned off." >&2; fi
 if [[ "${1:-}" = --dry-run ]]; then
   echo "PLAN ONLY: build (through heavy when installed); isolated preflight; copy runtime; reload $SERVICE."
   if [[ "$STATE" = absent ]]; then
