@@ -44,6 +44,7 @@ export function compactWon(amount: number, locale: MoneyLocale = "ko"): string {
   if (abs < 10_000) return `${sign}${grouping[locale].format(abs)}`;
   if (locale === "en") return `${sign}${compactEn.format(abs)}`;
   if (abs < 100_000) return `${sign}${oneDecimal(abs / 10_000)}만`;
-  if (abs < 100_000_000) return `${sign}${grouping.ko.format(Math.round(abs / 10_000))}만`;
+  const man = Math.round(abs / 10_000);
+  if (man < 10_000) return `${sign}${grouping.ko.format(man)}만`;
   return `${sign}${oneDecimal(abs / 100_000_000)}억`;
 }
