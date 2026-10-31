@@ -52,6 +52,18 @@ function occurrenceDate(start: string, frequency: Frequency, interval: number, i
   return `${targetYear}-${String(month).padStart(2, "0")}-${String(Math.min(day, daysInMonth(targetYear, month))).padStart(2, "0")}`;
 }
 
+/** A template that cannot become a transaction (a rule stored before its validation existed) skips its own rule only. */
+function usableTemplate(rule: Rule): TemplatePayload | undefined {
+  try {
+    const template = TemplatePayloadSchema.parse(JSON.parse(rule.template));
+    TransactionInputSchema.parse({ ...template, occurred_at: `${rule.start_date}T00:00:00+09:00` });
+    return template;
+  } catch {
+    console.error(`recurring_rule_skipped id=${rule.id}`);
+    return undefined;
+  }
+}
+
 /** Insert every due occurrence transactionally; source_key makes retries safe even after partial history. */
 export function materialize(db: Database, today = kstDate()): number {
   const run = db.transaction(() => {
@@ -63,7 +75,8 @@ export function materialize(db: Database, today = kstDate()): number {
       .all();
     const now = nowKst();
     for (const rule of rules) {
-      const template = TemplatePayloadSchema.parse(JSON.parse(rule.template));
+      const template = usableTemplate(rule);
+      if (!template) continue;
       const first = rule.last_materialized_date ? addDays(rule.last_materialized_date, 1) : rule.start_date;
       if (first > today || (rule.end_date !== null && first > rule.end_date)) continue;
       const elapsed = rule.last_materialized_date
