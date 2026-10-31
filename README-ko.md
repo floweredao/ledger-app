@@ -114,6 +114,15 @@ export function entries() {
 | `LEDGER_WATCH_DIR` | 없음(주기 수집만) | 원본 변경 감시 디렉터리. 바뀌면 곧바로 가져와요 |
 | `LEDGER_IMPORT_INTERVAL_MS` | `60000` | 자동 수집 주기(ms) |
 
+## 문제 해결
+
+- **서버가 `Invalid option: expected one of "127.0.0.1"|"localhost"|"::1"`을 출력하고 끝나요.** `LEDGER_HOST`가 다른 주소로 설정돼 있어요. 서버는 루프백에만 바인딩해요. 다른 기기에서 쓰려면 아래 Tailscale Serve를 쓰세요.
+- **서버가 `Failed to start server. Is port 4340 in use?`(`EADDRINUSE`)를 출력하고 끝나요.** 다른 프로세스가 `LEDGER_PORT`(기본 `4340`)를 쓰고 있어요. 그 프로세스를 멈추거나 `LEDGER_PORT=4350 bun run start`처럼 다른 포트로 시작하세요.
+- **`http://127.0.0.1:4340`이 JSON 본문과 함께 `404`를 돌려줘요.** 클라이언트를 빌드하지 않았거나 `LEDGER_STATIC_DIR`이 다른 곳을 가리켜요. `bun run build` 후 저장소 루트에서 서버를 시작하세요. 클라이언트가 없어도 `/api/v1/health`는 응답해요.
+- **로그인 화면이 토큰을 받아 주지 않아요.** `LEDGER_DATA_DIR` 안 `credentials.json`의 `owner_token` 값을 따옴표나 공백 없이 그대로 복사하세요. 데이터 디렉터리마다 토큰이 따로 있어서, `LEDGER_DATA_DIR`이 다르면 토큰도 달라요.
+- **데이터 화면에 은행 내역이 연결되지 않았다고 나와요.** `LEDGER_MODULE`을 지정하지 않으면 원래 그래요. 직접 입력, 파일 가져오기, 백업은 그대로 돼요.
+- **오프라인에서 바꾼 내용이 다른 기기에 안 보여요.** 대기 중인 변경은 서버에 다시 연결될 때까지 그 변경을 만든 브라우저에만 있어요. 그 기기가 온라인이 되면 앱을 한 번 여세요.
+
 ## Mac에서 상시 실행
 
 `ops/`는 macOS LaunchAgent와 Tailscale Serve용 운영 도구예요. Bun과 Tailscale이 필요해요. 은행 내역 수집을 켜려면 `ops/install.sh` 전에 `LEDGER_MODULE`(필요하면 `LEDGER_WATCH_DIR`도)을 지정하세요. 지정하지 않으면 수집이 꺼진 채로 설치돼요. 이후 도구를 다시 실행할 때 변수를 주지 않으면 기존 설치의 값을 그대로 써요. 작업 제한용 `heavy` 명령이 설치돼 있으면 빌드를 그걸로 감싸고, 없으면 바로 빌드해요.
@@ -144,6 +153,7 @@ bun run test:responsive
 - [런타임·복원](docs/runtime.md)
 - [디자인 규칙](DESIGN.md)
 - [개발 작업 규칙](AGENTS.md)
+- [기여 안내](CONTRIBUTING.md)(영어)
 
 ## 한계
 
