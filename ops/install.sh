@@ -8,9 +8,9 @@ check_repo_data
 STATE="$(serve_state)" # Refuse all conflicting 4340 configurations before writes.
 STATUS="$(tailscale status --json)" # Private shell variable, never logged.
 URL="$(printf '%s' "$STATUS" | "$BUN_PATH" "$REPO/ops/config.js" url)"
-[[ -r "$MODULE_PATH" && -d "$WATCH_PATH" ]] || fail "Read-only ledger module/watch directory required."
+[[ -r "$MODULE_PATH" && -d "$WATCH_PATH" ]] || fail "Read-only ledger module ($MODULE_PATH) and watch directory ($WATCH_PATH) required; set LEDGER_MODULE and LEDGER_WATCH_DIR."
 if [[ "${1:-}" = --dry-run ]]; then
-  echo "PLAN ONLY: heavy build; isolated preflight; copy runtime; reload $SERVICE."
+  echo "PLAN ONLY: build (through heavy when installed); isolated preflight; copy runtime; reload $SERVICE."
   if [[ "$STATE" = absent ]]; then
     echo "PLAN ONLY: tailscale serve --bg --https=4340 http://127.0.0.1:4340"
   else

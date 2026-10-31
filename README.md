@@ -110,7 +110,7 @@ The exact shape is in [`server/importer/source.ts`](server/importer/source.ts). 
 
 ## Running it all the time on a Mac
 
-`ops/` holds the macOS LaunchAgent and Tailscale Serve tooling. It needs Bun, Tailscale, the `heavy` job-limit command, and the read-only ingestion module at its default location; neither `heavy` nor the module ships with this repository. Without them, use the manual run above.
+`ops/` holds the macOS LaunchAgent and Tailscale Serve tooling. It needs Bun, Tailscale, and a read-only ingestion module, which doesn't ship with this repository. Point `LEDGER_MODULE` and `LEDGER_WATCH_DIR` at it before running the tools; otherwise they look in the default locations above. When the `heavy` job-limit command is installed, builds run through it; otherwise they run directly.
 
 ```sh
 bash ops/install.sh --dry-run  # plan and conflict check only, not a real install test
@@ -132,7 +132,7 @@ bun run build
 bun run test:responsive
 ```
 
-On this project's production Mac, run the full test suite, build, and responsive check as `heavy bun test`, `heavy bun run build`, and `heavy bun run test:responsive`. Don't bypass the concurrency limit.
+On a Mac that has the `heavy` job-limit command, run the full test suite, build, and responsive check as `heavy bun test`, `heavy bun run build`, and `heavy bun run test:responsive`. Don't bypass the concurrency limit.
 
 The responsive check uses Chrome/Chromium and Bun.WebView on a synthetic database to check screens, the entry sheet, the keypad, and horizontal overflow at 320, 375, and 390px, then cleans up after itself. Chrome doesn't reproduce iOS date and time field widths, so on a Mac with the Xcode iPhone Simulator, `bun run test:responsive:ios` checks those fields in Simulator Safari at the same widths. The installed status bar and native share sheet on a real iPhone still need a separate check.
 

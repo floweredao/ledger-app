@@ -6,8 +6,8 @@ RT="$HOME/Library/Application Support/ledger-app"
 PLIST="$HOME/Library/LaunchAgents/local.ledger-app.plist"
 DOMAIN="gui/$(id -u)"
 SERVICE="$DOMAIN/local.ledger-app"
-MODULE_PATH="$HOME/.local/share/ddolmeng-mode/bin/ledger.ts"
-WATCH_PATH="$HOME/.local/share/ddolmeng-mode/state/ledger"
+MODULE_PATH="${LEDGER_MODULE:-$HOME/.local/share/ddolmeng-mode/bin/ledger.ts}"
+WATCH_PATH="${LEDGER_WATCH_DIR:-$HOME/.local/share/ddolmeng-mode/state/ledger}"
 BUN_PATH="$(command -v bun)"
 [[ "$BUN_PATH" = /* && -x "$BUN_PATH" ]] || { echo "Absolute Bun executable required." >&2; exit 1; }
 export RT BUN_PATH MODULE_PATH WATCH_PATH
@@ -55,14 +55,17 @@ link_repo_data() {
     ln -s "$RT/data" "$REPO/data"
   fi
 }
+# Use the optional heavy job limiter when this Mac has it; build directly otherwise.
+run_build() {
+  if command -v heavy >/dev/null; then heavy "$@"; else "$@"; fi
+}
 build_stage() {
-  command -v heavy >/dev/null || fail "heavy is required."
   STAGE="$(mktemp -d "$RT/.stage.XXXXXX")"
   trap 'rm -rf "$STAGE"' EXIT
   (
     cd "$REPO"
-    heavy "$BUN_PATH" run build >&2
-    heavy "$BUN_PATH" build server/index.ts --target bun --outfile "$STAGE/server.js" >&2
+    run_build "$BUN_PATH" run build >&2
+    run_build "$BUN_PATH" build server/index.ts --target bun --outfile "$STAGE/server.js" >&2
   )
   cp -R "$REPO/dist" "$STAGE/dist"
   "$BUN_PATH" "$REPO/ops/preflight.js" "$STAGE" >&2
