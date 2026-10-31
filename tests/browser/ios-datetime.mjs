@@ -1,4 +1,4 @@
-// iOS Safari lane for the entry sheet date/time row. Chrome and macOS WebKit do not reproduce iOS's native
+// iOS Safari check for the entry sheet date/time row. Chrome and macOS WebKit do not reproduce iOS's native
 // date/time control width, so this drives the built app inside Simulator Safari at 390/375/320px.
 // Needs Xcode's simctl and an available iPhone simulator (IOS_SIM_UDID overrides the choice).
 import assert from "node:assert/strict";
