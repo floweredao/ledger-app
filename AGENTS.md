@@ -19,16 +19,16 @@ bunx biome check .
 bun run build
 ```
 
-`heavy` 명령이 설치된 Mac에서는 전체 테스트와 빌드를 반드시 `heavy`로 감싸서 돌려요: `heavy bun test`, `heavy bun run build`. heavy는 모든 에이전트 세션을 통틀어 무거운 작업을 최대 2개까지만 동시에 돌리고, Mac이 과부하일 때는 기다려요. 기다림은 정상이에요. 우회하지 마세요. 파일 하나 테스트나 타입 검사처럼 짧은 일은 그냥 돌려도 돼요. 슬롯 사용 현황은 `heavy --status`, 기록은 `~/.local/state/heavy/heavy.log`에 있어요.
+`heavy` 명령이 설치된 Mac에서는 전체 테스트와 빌드를 반드시 `heavy`로 감싸서 돌려요: `heavy bun test`, `heavy bun run build`. heavy는 모든 에이전트 세션을 통틀어 무거운 작업을 최대 2개까지만 동시에 돌리고, Mac이 과부하일 때는 기다려요. 기다림은 정상이에요. 우회하지 마세요. 파일 하나 테스트나 타입 검사처럼 짧은 일은 그냥 돌려도 돼요. 슬롯 사용 현황은 `heavy --status`로 봐요.
 
-`heavy`가 없으면 그냥 돌려요. `gcprun` 같은 원격 빌드 도구가 설치돼 있으면 리눅스 테스트에 써도 돼요.
+`heavy`가 없으면 그냥 돌려요.
 
 ## 하지 말아야 할 것
 
 - `data/`는 절대 커밋하지 않아요.
 - 자격 증명을 출력하지 않아요. `data/credentials.json`의 `owner_token`을 로그, 리포트, 채팅, QA 증거에 옮기지 않아요.
 - 다른 Tailscale Serve 포트나 항목을 바꾸지 않아요. `tailscale funnel`, `tailscale serve reset`은 쓰지 않아요. 이 앱이 쓰는 건 `https:4340` 하나뿐이에요.
-- 수집 모듈(`LEDGER_MODULE`, 기본 `~/.local/share/ddolmeng-mode/bin/ledger.ts`)과 감시 폴더(`LEDGER_WATCH_DIR`) 안의 파일은 읽기만 하고 고치지 않아요.
+- 수집 모듈(`LEDGER_MODULE`, 기본값 없음)과 감시 폴더(`LEDGER_WATCH_DIR`) 안의 파일은 읽기만 하고 고치지 않아요.
 - 서버는 루프백(`127.0.0.1`, `localhost`, `::1`)에만 바인딩해요. 다른 주소로 노출하지 않아요.
 - `package.json` 버전은 오너가 승인할 때까지 `0.0.x`로 둬요.
 - 테스트와 픽스처는 합성 데이터만 써요(예: "테스트마트", "샘플카페", "홍길동"). 실제 이름, 계좌번호, 거래 내역은 넣지 않아요.

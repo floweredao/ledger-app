@@ -4,7 +4,7 @@ import { startImportWatcher } from "../importer/watch";
 import { startBackupJob } from "./backup";
 import { startRecurringJob } from "./recurring";
 
-export function startJobs(options: { db: Database; env: Config; importer?: Importer }): () => void {
+export function startJobs(options: { db: Database; env: Config; importer?: Importer | undefined }): () => void {
   const { db, env, importer } = options;
 
   const backupJobStop = startBackupJob({ db, dataDir: env.LEDGER_DATA_DIR });

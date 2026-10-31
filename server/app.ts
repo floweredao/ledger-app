@@ -1,7 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { existsSync, statSync } from "node:fs";
-import { homedir } from "node:os";
-import { dirname, join, resolve, sep } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { Hono } from "hono";
 import { z } from "zod";
 import pkg from "../package.json" with { type: "json" };
@@ -23,7 +22,6 @@ import { templatesRoutes } from "./routes/templates";
 import { transactionsRoutes } from "./routes/transactions";
 
 export const VERSION = pkg.version;
-export const DEFAULT_LEDGER_MODULE = join(homedir(), ".local/share/ddolmeng-mode/bin/ledger.ts");
 
 const optionalText = z.preprocess((value) => (value === "" ? undefined : value), z.string().trim().min(1).optional());
 const origin = z
@@ -54,17 +52,13 @@ export const ConfigSchema = z
           .filter((item) => item !== ""),
       )
       .pipe(z.array(origin)),
-    LEDGER_MODULE: z.string().min(1).default(DEFAULT_LEDGER_MODULE),
+    LEDGER_MODULE: optionalText,
     LEDGER_IMPORT_INTERVAL_MS: z.coerce.number().int().min(1000).default(60_000),
     LEDGER_WATCH_DIR: optionalText,
   })
   .transform((config) => ({
     ...config,
-    LEDGER_WATCH_DIR: config.LEDGER_WATCH_DIR
-      ? resolve(process.cwd(), config.LEDGER_WATCH_DIR)
-      : config.LEDGER_MODULE === DEFAULT_LEDGER_MODULE
-        ? resolve(dirname(config.LEDGER_MODULE), "../state/ledger")
-        : null,
+    LEDGER_WATCH_DIR: config.LEDGER_WATCH_DIR ? resolve(process.cwd(), config.LEDGER_WATCH_DIR) : null,
   }));
 export type Config = z.output<typeof ConfigSchema>;
 
@@ -77,7 +71,7 @@ export type { Importer };
 export type AppOptions = {
   readonly db: Database;
   readonly env: Config;
-  readonly importer?: Importer;
+  readonly importer?: Importer | undefined;
 };
 
 const CSP =
