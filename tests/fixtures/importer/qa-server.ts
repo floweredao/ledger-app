@@ -3,7 +3,7 @@ import { createApp, parseConfig } from "../../../server/app";
 import { openDb } from "../../../server/db";
 import { createImporter } from "../../../server/importer/run";
 
-// Inject the real importer without editing another lane's server/index.ts wiring.
+// Starts the real importer for HTTP QA without changing server/index.ts.
 const config = parseConfig(process.env);
 const db = openDb(join(config.LEDGER_DATA_DIR, "ledger.sqlite"));
 const importer = config.LEDGER_MODULE ? createImporter({ db, modulePath: config.LEDGER_MODULE }) : undefined;
