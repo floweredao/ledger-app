@@ -248,10 +248,13 @@ describe("DailyList", () => {
         const url = String(input);
         calls.push(`${init?.method ?? "GET"} ${url}`);
         if (url.includes("sync/run")) {
-          return new Response(JSON.stringify({ error: { code: "not_available", message: "Importer not configured" } }), {
-            status: 503,
-            headers: { "Content-Type": "application/json" },
-          });
+          return new Response(
+            JSON.stringify({ error: { code: "not_available", message: "Importer not configured" } }),
+            {
+              status: 503,
+              headers: { "Content-Type": "application/json" },
+            },
+          );
         }
         return new Response(JSON.stringify(url.includes("categories") ? categories : list([])), {
           status: 200,
