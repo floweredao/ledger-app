@@ -397,6 +397,7 @@ export const SessionStateSchema = z.object({
 export type SessionState = z.infer<typeof SessionStateSchema>;
 
 export const SyncStatusSchema = z.object({
+  configured: z.boolean(),
   last_run_at: timestamp.nullable(),
   last_result: z.unknown(),
   last_error: z.string().nullable(),

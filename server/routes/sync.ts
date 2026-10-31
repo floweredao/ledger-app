@@ -21,6 +21,7 @@ syncRoutes.get("/sync/status", async (c) => {
     | undefined;
 
   return c.json({
+    configured: c.var.importer !== undefined,
     last_run_at: lastRun ? JSON.parse(lastRun.value) : null,
     last_result: lastResult ? JSON.parse(lastResult.value) : null,
     last_error: lastError ? JSON.parse(lastError.value) : null,
