@@ -588,7 +588,8 @@ describe("sync section and shared hooks", () => {
   });
   test("says bank import is not connected instead of offering sync", async () => {
     const original = respond;
-    respond = (url, init) => (url.endsWith("sync/status") ? json({ ...status, configured: false }) : original(url, init));
+    respond = (url, init) =>
+      url.endsWith("sync/status") ? json({ ...status, configured: false }) : original(url, init);
     await mount();
     expect(screen.getByText(/은행 내역 가져오기가 연결되지 않았어요/)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "지금 동기화" })).toBeNull();
