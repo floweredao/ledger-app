@@ -291,7 +291,7 @@ describe("balances and card cycles", () => {
       usage: 60000,
       expected_payment: 90000,
       cycle: { from: "2026-03-15", to: "2026-04-14" },
-      payment_date: "2026-05-01",
+      payment_date: "2026-04-01",
       performance: { target: 300000, achieved: 60000, pct: 20 },
     });
   });
@@ -326,6 +326,56 @@ describe("balances and card cycles", () => {
     });
     expect(result.assets.find((row) => row.id === loan.id)?.balance).toBe(-200000);
     expect(result.totals).toEqual({ assets: 1000000, debts: 210000, net_worth: 790000 });
+  });
+});
+
+describe("card bill pairing", () => {
+  const bill = async (id: string) => {
+    const row = (await summary()).assets.find((item) => item.id === id);
+    return { expected_payment: row?.expected_payment, payment_date: row?.payment_date };
+  };
+  const pay = async (id: string, amount: number, date: string) =>
+    expect(
+      (await request(`/api/v1/assets/${id}/card-payment`, { method: "POST", body: { amount, date } })).status,
+    ).toBe(201);
+
+  test("before settlement keeps the unpaid closed bill and its passed due date, then moves on once paid", async () => {
+    setSystemTime(new Date("2026-03-10T12:00:00+09:00"));
+    const { credit } = await card();
+    tx(credit.id, 40000, "2026-02-01T10:00:00+09:00");
+    tx(credit.id, 90000, "2026-02-20T10:00:00+09:00");
+    expect(await bill(credit.id)).toEqual({ expected_payment: 40000, payment_date: "2026-03-01" });
+    await pay(credit.id, 40000, "2026-03-02");
+    expect(await bill(credit.id)).toEqual({ expected_payment: 90000, payment_date: "2026-04-01" });
+  });
+
+  test("between settlement and due date pairs the closed bill with its own due date", async () => {
+    setSystemTime(new Date("2026-03-20T12:00:00+09:00"));
+    const { credit } = await card();
+    tx(credit.id, 90000, "2026-02-20T10:00:00+09:00");
+    tx(credit.id, 20000, "2026-03-18T10:00:00+09:00");
+    expect(await bill(credit.id)).toEqual({ expected_payment: 90000, payment_date: "2026-04-01" });
+  });
+
+  test("after payment shows the next cycle amount and date together, counting any surplus", async () => {
+    setSystemTime(new Date("2026-03-26T12:00:00+09:00"));
+    const { credit } = await card();
+    tx(credit.id, 90000, "2026-02-20T10:00:00+09:00");
+    tx(credit.id, 20000, "2026-03-18T10:00:00+09:00");
+    await pay(credit.id, 50000, "2026-03-21");
+    expect(await bill(credit.id)).toEqual({ expected_payment: 40000, payment_date: "2026-04-01" });
+    await pay(credit.id, 45000, "2026-03-25");
+    expect(await bill(credit.id)).toEqual({ expected_payment: 15000, payment_date: "2026-05-01" });
+  });
+
+  test("settlement and payment on the last day of a short month", async () => {
+    setSystemTime(new Date("2026-02-28T12:00:00+09:00"));
+    const { credit } = await card(31, 31);
+    tx(credit.id, 40000, "2026-01-31T10:00:00+09:00");
+    tx(credit.id, 15000, "2026-02-28T10:00:00+09:00");
+    expect(await bill(credit.id)).toEqual({ expected_payment: 40000, payment_date: "2026-02-28" });
+    await pay(credit.id, 40000, "2026-02-28");
+    expect(await bill(credit.id)).toEqual({ expected_payment: 15000, payment_date: "2026-03-31" });
   });
 });
 
