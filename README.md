@@ -114,6 +114,15 @@ The exact shape is in [`server/importer/source.ts`](server/importer/source.ts). 
 | `LEDGER_WATCH_DIR` | none (poll only) | Directory watched for source changes, so imports run soon after a change |
 | `LEDGER_IMPORT_INTERVAL_MS` | `60000` | Automatic import interval in ms |
 
+## Troubleshooting
+
+- **The server exits with `Invalid option: expected one of "127.0.0.1"|"localhost"|"::1"`.** `LEDGER_HOST` is set to another address. The server only binds to loopback; use Tailscale Serve (see below) for access from other devices.
+- **The server exits with `Failed to start server. Is port 4340 in use?` (`EADDRINUSE`).** Another process already uses `LEDGER_PORT` (default `4340`). Stop it, or start this app with another port, for example `LEDGER_PORT=4350 bun run start`.
+- **`http://127.0.0.1:4340` answers `404` with a JSON body.** The client has not been built, or `LEDGER_STATIC_DIR` points somewhere else. Run `bun run build` and start the server from the repository root. `/api/v1/health` still answers while the client is missing.
+- **The sign-in screen rejects the token.** Copy the `owner_token` value from `credentials.json` in `LEDGER_DATA_DIR` exactly, without quotes or spaces. Each data directory has its own token, so a different `LEDGER_DATA_DIR` means a different token.
+- **The data screen says bank import is not connected.** That is the normal state when `LEDGER_MODULE` is unset. Manual entry, file import, and backups work without it.
+- **Changes made offline do not appear on another device.** Pending changes stay in the browser that made them until it reconnects to the server. Open the app on that device once it is back online.
+
 ## Running it all the time on a Mac
 
 `ops/` holds the macOS LaunchAgent and Tailscale Serve tooling. It needs Bun and Tailscale. To turn on bank history ingestion, set `LEDGER_MODULE` (and optionally `LEDGER_WATCH_DIR`) before `ops/install.sh`; without them the app is installed with ingestion off. Later runs of the tools keep the values of the existing install unless you set the variables again. When the `heavy` job-limit command is installed, builds run through it; otherwise they run directly.
@@ -146,6 +155,7 @@ Developer docs are in Korean:
 - [Runtime and restore](docs/runtime.md)
 - [Design rules](DESIGN.md)
 - [Agent working rules](AGENTS.md)
+- [Contributing](CONTRIBUTING.md) (English)
 
 ## Limits
 
