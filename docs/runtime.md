@@ -42,7 +42,7 @@ LaunchAgent는 `~/Documents` 아래에서 작업 디렉터리를 열다 멈출 �
 
 LaunchAgent 라벨은 `local.ledger-app`이고 RunAtLoad, KeepAlive가 켜져 있어요.
 
-템플릿은 `ops/local.ledger-app.plist.template`이에요. 설치할 때 `command -v bun`의 절대 경로와 런타임 경로를 넣어요. `LEDGER_HOST=127.0.0.1`, `LEDGER_PORT=4340`, `LEDGER_DATA_DIR=$RT/data`, `LEDGER_STATIC_DIR=$RT/dist`를 명시해요. 원본 모듈과 감시 경로는 설치할 때의 `LEDGER_MODULE`, `LEDGER_WATCH_DIR`이고, 없으면 각각 `~/.local/share/ddolmeng-mode/bin/ledger.ts`, `~/.local/share/ddolmeng-mode/state/ledger`예요. 둘 다 읽기만 해요.
+템플릿은 `ops/local.ledger-app.plist.template`이에요. 설치할 때 `command -v bun`의 절대 경로와 런타임 경로를 넣어요. `LEDGER_HOST=127.0.0.1`, `LEDGER_PORT=4340`, `LEDGER_DATA_DIR=$RT/data`, `LEDGER_STATIC_DIR=$RT/dist`를 명시해요. 원본 모듈과 감시 경로는 설치할 때의 `LEDGER_MODULE`, `LEDGER_WATCH_DIR`이에요. 변수가 없으면 이미 설치된 plist의 값을 쓰고, 그것도 없으면 해당 키를 빼고 설치해서 수집이 꺼져요. 둘 다 읽기만 해요.
 
 Tailscale `Self.DNSName`의 마지막 점을 제거하고 `Self.UserID`에 해당하는 `User.LoginName`을 비공개로 plist에 넣어요. 모든 동적 XML 값은 escape해요. 설치된 plist는 로그인 식별자를 포함하므로 0600, 런타임/data/logs 디렉터리는 0700으로 둬요. 템플릿에는 실제 로그인이나 토큰을 넣지 않아요.
 

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod";
 
-// Mirrors entries() of ~/.local/share/ddolmeng-mode/bin/ledger.ts with synthetic paths and accounts.
+// Mirrors the entries() contract of an external ingestion module with synthetic paths and accounts.
 const EntrySchema = z.looseObject({
   id: z.number(),
   at: z.string(),

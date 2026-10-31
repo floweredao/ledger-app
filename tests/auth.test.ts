@@ -182,26 +182,6 @@ describe("Tailscale bootstrap", () => {
 });
 
 describe("startup", () => {
-  test("default source path follows the running user home", async () => {
-    const home = mkdtempSync(join(tmpdir(), "ledger-home-"));
-    try {
-      const source = join(import.meta.dir, "../server/app.ts");
-      const script = `import {homedir} from "node:os"; import {join} from "node:path";
-        import {DEFAULT_LEDGER_MODULE} from ${JSON.stringify(source)};
-        console.log(DEFAULT_LEDGER_MODULE === join(homedir(), ".local/share/ddolmeng-mode/bin/ledger.ts"));`;
-      const child = Bun.spawn([process.execPath, "-e", script], {
-        env: { ...process.env, HOME: home },
-        stdout: "pipe",
-        stderr: "pipe",
-      });
-      const [code, output] = await Promise.all([child.exited, new Response(child.stdout).text()]);
-      expect(code).toBe(0);
-      expect(output.trim()).toBe("true");
-    } finally {
-      rmSync(home, { recursive: true, force: true });
-    }
-  });
-
   test("refuses LEDGER_HOST=0.0.0.0 and exits non-zero", async () => {
     const dataDir = mkdtempSync(join(tmpdir(), "ledger-host-"));
     try {

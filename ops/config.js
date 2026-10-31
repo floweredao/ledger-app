@@ -43,7 +43,11 @@ export function render(template, values) {
       /[&<>"']/g,
       (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" })[char],
     );
-  return template.replace(/__(BUN|RT|MODULE|WATCH|TS_HOST|TS_LOGIN)__/g, (_, key) => {
+  const optional = new Set(["MODULE", "WATCH"]);
+  const lines = template
+    .split("\n")
+    .filter((line) => ![...optional].some((key) => line.includes(`__${key}__`) && !values[key]));
+  return lines.join("\n").replace(/__(BUN|RT|MODULE|WATCH|TS_HOST|TS_LOGIN)__/g, (_, key) => {
     if (!values[key]) throw new Error("Missing template value.");
     return xmlEscape(values[key]);
   });

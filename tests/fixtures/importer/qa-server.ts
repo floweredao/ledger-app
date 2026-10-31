@@ -6,7 +6,7 @@ import { createImporter } from "../../../server/importer/run";
 // Inject the real importer without editing another lane's server/index.ts wiring.
 const config = parseConfig(process.env);
 const db = openDb(join(config.LEDGER_DATA_DIR, "ledger.sqlite"));
-const importer = createImporter({ db, modulePath: config.LEDGER_MODULE });
+const importer = config.LEDGER_MODULE ? createImporter({ db, modulePath: config.LEDGER_MODULE }) : undefined;
 const app = createApp({ db, env: config, importer });
 const server = Bun.serve({ hostname: config.LEDGER_HOST, port: config.LEDGER_PORT, fetch: app.fetch });
 console.log(`IMPORTER_QA_READY ${server.hostname}:${server.port}`);
