@@ -154,7 +154,7 @@ Asset: `id, name, kind, group_name, opening_balance, opening_date, linked_asset_
 
 `opening_date`는 한국 시간(KST) 기준 `YYYY-MM-DD` 또는 null이에요. null이면 기존처럼 전체 거래를 기존 잔액에 반영해요. 날짜가 있으면 그날 이전 거래 효과는 `opening_balance`에 이미 포함된 것으로 보고, 그날 00:00 KST부터 이후 거래만 잔액에 반영해요. 이체의 출금과 입금은 각각 해당 자산의 기준일을 따르므로 한쪽만 제외될 수 있어요. 체크카드는 먼저 연결 계좌로 해석한 뒤 그 계좌의 기준일을 적용해요. 카드 사용액·실적·청구 주기·예상 결제액과 거래 내역 조회는 이 기준일로 잘라내지 않아요.
 
-AssetSummaryRow는 Asset에 다음을 더해요: `balance`, `usage`(카드의 이번 주기 사용액, 카드가 아니면 null), `cycle: {from, to} | null`, `payment_date`, `expected_payment`(신용카드의 직전 마감 주기 미납액), `performance: {target, achieved, pct} | null`, `reported_balance`, `reported_at`, `mismatch`(장부 잔액 빼기 보고 잔액). 체크카드의 `balance`는 연결 계좌 잔액이에요.
+AssetSummaryRow는 Asset에 다음을 더해요: `balance`, `usage`(카드의 이번 주기 사용액, 카드가 아니면 null), `cycle: {from, to} | null`, `expected_payment`(신용카드에서 낼 청구서 한 장의 금액. 직전 마감 주기에 미납액이 있으면 그 미납액이고, 다 냈으면 지금 주기의 사용액에서 초과 납부분을 뺀 금액), `payment_date`(`expected_payment`와 같은 청구서의 결제일. 결제일이 지났어도 다 낼 때까지 그대로예요), `performance: {target, achieved, pct} | null`, `reported_balance`, `reported_at`, `mismatch`(장부 잔액 빼기 보고 잔액). 체크카드의 `balance`는 연결 계좌 잔액이에요.
 
 ### `GET /assets`
 쿼리 `include_hidden`(`true|false|1|0`). 응답 `{items: AssetSummaryRow[]}`.

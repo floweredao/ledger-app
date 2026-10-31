@@ -236,9 +236,12 @@ export function assetSummary(db: Database, today = kstDate(), includeHidden = fa
             ? sum + flow.amount
             : sum;
         }, 0);
-        expectedPayment = Math.max(0, spend(flows, asset.id, closed) - payments);
+        // The amount and date describe one bill: the closed cycle until it is paid, then the open cycle so far.
+        const closedBill = spend(flows, asset.id, closed) - payments;
+        const billed = closedBill > 0 ? closed : cycle;
+        expectedPayment = closedBill > 0 ? closedBill : Math.max(0, (usage ?? 0) + closedBill);
         if (asset.payment_day !== null) {
-          const month = addMonths(cycle.to.slice(0, 7), asset.payment_day <= day ? 1 : 0);
+          const month = addMonths(billed.to.slice(0, 7), asset.payment_day <= day ? 1 : 0);
           paymentDate = settlement(month, asset.payment_day);
         }
       }
@@ -355,7 +358,7 @@ export function cardPayment(db: Database, id: string, input: CardPaymentInput) {
       const occurredAt = input.date ? `${input.date}T00:00:00+09:00` : nowKst();
       const row = assetSummary(db, kstDate(occurredAt), true).assets.find((asset) => asset.id === id);
       const amount = input.amount ?? row?.expected_payment ?? 0;
-      if (amount <= 0) throw new ApiError(400, "invalid_card_payment", "There is no unpaid closed cycle");
+      if (amount <= 0) throw new ApiError(400, "invalid_card_payment", "There is nothing to pay");
       return insertTransaction(
         db,
         TransactionInputSchema.parse({
