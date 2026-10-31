@@ -54,6 +54,9 @@ describe("formatters use the product language", () => {
     expect(formatWon(-1234567)).toBe("-1,234,567원");
     expect(formatSigned("expense", 12345)).toBe("-12,345원");
     expect(compactWon(12_000)).toBe("1.2만");
+    expect(compactWon(99_994_999)).toBe("9,999만");
+    expect(compactWon(99_995_000)).toBe("1억");
+    expect(compactWon(-99_999_999)).toBe("-1억");
     expect(formatMonth("2026-10")).toBe("2026년 10월");
     expect(formatDisplayDate("2025-03-04")).toBe("2025년 3월 4일");
   });
