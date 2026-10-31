@@ -42,7 +42,7 @@ LaunchAgent는 `~/Documents` 아래에서 작업 디렉터리를 열다 멈출 �
 
 LaunchAgent 라벨은 `local.ledger-app`이고 RunAtLoad, KeepAlive가 켜져 있어요.
 
-템플릿은 `ops/local.ledger-app.plist.template`이에요. 설치할 때 `command -v bun`의 절대 경로와 런타임 경로를 넣어요. `LEDGER_HOST=127.0.0.1`, `LEDGER_PORT=4340`, `LEDGER_DATA_DIR=$RT/data`, `LEDGER_STATIC_DIR=$RT/dist`를 명시해요. 원본 모듈과 감시 경로는 각각 `~/.local/share/ddolmeng-mode/bin/ledger.ts`, `~/.local/share/ddolmeng-mode/state/ledger`이고 읽기만 해요.
+템플릿은 `ops/local.ledger-app.plist.template`이에요. 설치할 때 `command -v bun`의 절대 경로와 런타임 경로를 넣어요. `LEDGER_HOST=127.0.0.1`, `LEDGER_PORT=4340`, `LEDGER_DATA_DIR=$RT/data`, `LEDGER_STATIC_DIR=$RT/dist`를 명시해요. 원본 모듈과 감시 경로는 설치할 때의 `LEDGER_MODULE`, `LEDGER_WATCH_DIR`이고, 없으면 각각 `~/.local/share/ddolmeng-mode/bin/ledger.ts`, `~/.local/share/ddolmeng-mode/state/ledger`예요. 둘 다 읽기만 해요.
 
 Tailscale `Self.DNSName`의 마지막 점을 제거하고 `Self.UserID`에 해당하는 `User.LoginName`을 비공개로 plist에 넣어요. 모든 동적 XML 값은 escape해요. 설치된 plist는 로그인 식별자를 포함하므로 0600, 런타임/data/logs 디렉터리는 0700으로 둬요. 템플릿에는 실제 로그인이나 토큰을 넣지 않아요.
 
@@ -57,7 +57,7 @@ bash ops/install.sh
 bash ops/update.sh
 ```
 
-dry-run은 계획 출력이에요. 빌드, 서버 기동, LaunchAgent 검증을 하지 않아요. install/update는 `heavy bun run build` 후 `heavy bun build server/index.ts --target bun --outfile <런타임의 임시 stage>/server.js`를 실행해요. 빌드 실패 시 현재 서버는 그대로 있어요. stage에서 합성 모듈·데이터와 4339로 사전 점검하고, 준비 로그를 구독한 뒤 실제 health 200을 확인해요. 격리 서버와 임시 데이터를 정리한 후 운영 코드를 복사해요. 운영 데이터는 복사하지 않아요.
+dry-run은 계획 출력이에요. 빌드, 서버 기동, LaunchAgent 검증을 하지 않아요. install/update는 `bun run build` 후 `bun build server/index.ts --target bun --outfile <런타임의 임시 stage>/server.js`를 실행해요. `heavy` 명령이 있으면 두 빌드를 `heavy`로 감싸요. 빌드 실패 시 현재 서버는 그대로 있어요. stage에서 합성 모듈·데이터와 4339로 사전 점검하고, 준비 로그를 구독한 뒤 실제 health 200을 확인해요. 격리 서버와 임시 데이터를 정리한 후 운영 코드를 복사해요. 운영 데이터는 복사하지 않아요.
 
 재설치는 자기 라벨이 로드돼 있으면 bootout하고 logs를 미리 만든 뒤 bootstrap해요. update도 코드 교체 동안 자기 agent만 중지하고 bootstrap해요. 시작 로그를 변경 전부터 구독하고 새 준비 로그 및 health를 확인해요(준비 제한 10초, HTTP 제한 5초). 실패하면 로그를 살펴보고 아래 되돌리기를 실행해요. 성공한 install만 현재 DNS 이름의 URL을 반환해요. 다른 앱이나 원본 ledger 수집 프로세스는 재시작하지 않아요.
 
