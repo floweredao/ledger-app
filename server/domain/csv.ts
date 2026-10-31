@@ -160,7 +160,7 @@ export function parseImportTable(table: readonly (readonly string[])[]): ImportP
       if (type === "transfer" && (!destination || destination === asset)) {
         throw new ApiError(400, "invalid_transfer", "A transfer needs a different destination asset");
       }
-      const foreign = get("외화금액").trim();
+      const foreign = get("외화금액").replaceAll(",", "").trim();
       const hidden = get("숨김").trim();
       if (hidden && !["0", "1", "false", "true"].includes(hidden)) {
         throw new ApiError(400, "invalid_hidden", "Invalid hidden flag");

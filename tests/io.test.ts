@@ -252,6 +252,19 @@ describe("export and import", () => {
     ).toEqual({ name: "테스트저축" });
   });
 
+  test("accepts a foreign amount written with thousands separators", async () => {
+    const plan = await (
+      await preview(`${HEADER}\n2026-10-04,09:15:00,지출,,,"1,234,567",USD,"1,234.56",현금,,테스트마트,,,0\n`)
+    ).json();
+    expect(plan.counts).toEqual({ total: 1, new: 1, duplicate: 0, error: 0 });
+    expect(await (await commit(plan.preview_id)).json()).toEqual({ inserted: 1, skipped: 0 });
+    expect(app.db.query("SELECT amount,currency,foreign_amount FROM transactions").get()).toEqual({
+      amount: 1234567,
+      currency: "USD",
+      foreign_amount: 1234.56,
+    });
+  });
+
   test("export walks every page instead of silently truncating at the list limit", async () => {
     app.db.transaction(() => {
       for (let i = 0; i < 1001; i++) seed(`테스트마트${i}`);
