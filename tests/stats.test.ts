@@ -14,6 +14,41 @@ afterEach(() => {
 });
 
 describe("stats and calendar API", () => {
+  test("the uncategorized row has no children", async () => {
+    const app = setup();
+    const fetch = await authed(app);
+    const cash = required(app.db.query<{ id: string }, []>("SELECT id FROM assets WHERE kind='cash' LIMIT 1").get()).id;
+    const food = required(
+      app.db
+        .query<{ id: string }, []>(
+          "SELECT id FROM categories WHERE type='expense' AND name='식비' AND parent_id IS NULL",
+        )
+        .get(),
+    ).id;
+    for (const [amount, category_id] of [
+      [1000, food],
+      [500, null],
+    ] as const)
+      insertTransaction(
+        app.db,
+        TransactionInputSchema.parse({
+          type: "expense",
+          occurred_at: "2026-10-05T12:00:00+09:00",
+          amount,
+          asset_id: cash,
+          ...(category_id ? { category_id } : {}),
+          merchant: "테스트마트",
+        }),
+        { now: "2026-10-05T12:00:00+09:00" },
+      );
+    const body = await (await fetch("/api/v1/stats/categories?from=2026-10-01&to=2026-10-31&type=expense")).json();
+    const uncategorized = body.rows.find((row: { category_id: string | null }) => row.category_id === null);
+    expect(uncategorized).toMatchObject({ amount: 500, children: [] });
+    expect(body.rows.find((row: { category_id: string | null }) => row.category_id === food)).toMatchObject({
+      amount: 1000,
+    });
+  });
+
   test("aggregates periods, categories, trends, comparisons, merchants, assets, and calendar", async () => {
     const app = setup();
     const fetch = await authed(app);
