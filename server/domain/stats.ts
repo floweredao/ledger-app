@@ -64,7 +64,7 @@ export function statsCategories(db: Database, filter: Filter) {
     .map(([id, amount]) => {
       const category = id ? byId.get(id) : undefined;
       const children = categories
-        .filter((child) => child.parent_id === id)
+        .filter((child) => id !== null && child.parent_id === id)
         .map((child) => ({
           category_id: child.id,
           name: child.name,
