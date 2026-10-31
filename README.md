@@ -35,9 +35,15 @@ Light theme on top, dark theme below. All accounts, merchants, and amounts are s
 | <img src="docs/images/en-ledger-light.png" width="260" alt="Ledger screen in the light theme with synthetic income and expenses"> | <img src="docs/images/en-stats-light.png" width="260" alt="Statistics screen in the light theme with a category donut chart"> | <img src="docs/images/en-assets-light.png" width="260" alt="Assets screen in the light theme with synthetic account, card, and savings balances"> |
 | <img src="docs/images/en-ledger-dark.png" width="260" alt="Ledger screen in the dark theme"> | <img src="docs/images/en-stats-dark.png" width="260" alt="Statistics screen in the dark theme"> | <img src="docs/images/en-assets-dark.png" width="260" alt="Assets screen in the dark theme"> |
 
+## Requirements
+
+- [Bun](https://bun.sh) 1.4.2 or later. That is all you need to run the app on macOS, Linux, or Windows (WSL).
+- Optional: macOS and [Tailscale](https://tailscale.com) for the always-on install in `ops/` and phone access.
+- Optional: Chrome or Chromium for `bun run test:responsive`.
+
 ## Quick start
 
-You need Bun 1.4.2 or later. The server is Bun + Hono + SQLite and the client is React + Vite.
+The server is Bun + Hono + SQLite and the client is React + Vite.
 
 ```sh
 git clone <this repository's URL>
@@ -49,7 +55,7 @@ bun run start
 
 Open `http://127.0.0.1:4340`. On first run, `data/credentials.json` is created with mode `0600`. Open it privately and enter its `owner_token` on the sign-in screen. Never print the token to a terminal, log, or chat, and never share the file.
 
-See [`.env.example`](.env.example) for configuration; Bun reads `.env`. The ingestion module is not part of this repository. Without it, the sync status shows an error, but manual entry still works.
+See [`.env.example`](.env.example) for configuration; Bun reads `.env`. Bank history ingestion is optional and off by default: without `LEDGER_MODULE` the app runs with manual entry, file import, and backups, and nothing is polled.
 
 For development, run these in two terminals:
 
@@ -104,13 +110,13 @@ The exact shape is in [`server/importer/source.ts`](server/importer/source.ts). 
 | `LEDGER_TAILSCALE_HOST` | none | Serve `host:port` |
 | `LEDGER_TAILSCALE_LOGIN` | none | Your own Tailscale login allowed to sign in automatically |
 | `LEDGER_ALLOWED_ORIGINS` | none | Extra allowed origins, comma-separated |
-| `LEDGER_MODULE` | `~/.local/share/ddolmeng-mode/bin/ledger.ts` | Read-only ingestion module, relative to the current user's home |
-| `LEDGER_WATCH_DIR` | `../state/ledger` next to the module | Directory watched for source changes |
+| `LEDGER_MODULE` | none (ingestion off) | Path to a read-only ingestion module; see [Bank history](#bank-history) |
+| `LEDGER_WATCH_DIR` | none (poll only) | Directory watched for source changes, so imports run soon after a change |
 | `LEDGER_IMPORT_INTERVAL_MS` | `60000` | Automatic import interval in ms |
 
 ## Running it all the time on a Mac
 
-`ops/` holds the macOS LaunchAgent and Tailscale Serve tooling. It needs Bun, Tailscale, and a read-only ingestion module, which doesn't ship with this repository. Point `LEDGER_MODULE` and `LEDGER_WATCH_DIR` at it before running the tools; otherwise they look in the default locations above. When the `heavy` job-limit command is installed, builds run through it; otherwise they run directly.
+`ops/` holds the macOS LaunchAgent and Tailscale Serve tooling. It needs Bun and Tailscale. To turn on bank history ingestion, set `LEDGER_MODULE` (and optionally `LEDGER_WATCH_DIR`) before `ops/install.sh`; without them the app is installed with ingestion off. Later runs of the tools keep the values of the existing install unless you set the variables again. When the `heavy` job-limit command is installed, builds run through it; otherwise they run directly.
 
 ```sh
 bash ops/install.sh --dry-run  # plan and conflict check only, not a real install test
@@ -131,8 +137,6 @@ bunx biome check .
 bun run build
 bun run test:responsive
 ```
-
-On a Mac that has the `heavy` job-limit command, run the full test suite, build, and responsive check as `heavy bun test`, `heavy bun run build`, and `heavy bun run test:responsive`. Don't bypass the concurrency limit.
 
 The responsive check uses Chrome/Chromium and Bun.WebView on a synthetic database to check screens, the entry sheet, the keypad, and horizontal overflow at 320, 375, and 390px, then cleans up after itself. Chrome doesn't reproduce iOS date and time field widths, so on a Mac with the Xcode iPhone Simulator, `bun run test:responsive:ios` checks those fields in Simulator Safari at the same widths. The installed status bar and native share sheet on a real iPhone still need a separate check.
 
