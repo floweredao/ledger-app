@@ -35,9 +35,15 @@
 | <img src="docs/images/ko-ledger-light.png" width="260" alt="밝은 테마의 가계부 화면, 합성 수입과 지출 목록"> | <img src="docs/images/ko-stats-light.png" width="260" alt="밝은 테마의 통계 화면, 분류별 지출 도넛 차트"> | <img src="docs/images/ko-assets-light.png" width="260" alt="밝은 테마의 자산 화면, 합성 계좌·카드·저축 잔액"> |
 | <img src="docs/images/ko-ledger-dark.png" width="260" alt="어두운 테마의 가계부 화면"> | <img src="docs/images/ko-stats-dark.png" width="260" alt="어두운 테마의 통계 화면"> | <img src="docs/images/ko-assets-dark.png" width="260" alt="어두운 테마의 자산 화면"> |
 
+## 요구 사항
+
+- [Bun](https://bun.sh) 1.4.2 이상. 앱을 실행하는 데는 이것만 있으면 돼요(macOS, Linux, Windows WSL).
+- 선택: `ops/`의 상시 실행 설치와 폰 접속에는 macOS와 [Tailscale](https://tailscale.com)이 필요해요.
+- 선택: `bun run test:responsive`에는 Chrome 또는 Chromium이 필요해요.
+
 ## 빠른 시작
 
-Bun 1.4.2 이상이 필요해요. 서버는 Bun + Hono + SQLite, 화면은 React + Vite예요.
+서버는 Bun + Hono + SQLite, 화면은 React + Vite예요.
 
 ```sh
 git clone <이 저장소의 URL>
@@ -49,7 +55,7 @@ bun run start
 
 `http://127.0.0.1:4340`에서 열어요. 처음 실행하면 `data/credentials.json`이 권한 `0600`으로 만들어져요. 파일을 비공개로 열어 `owner_token`을 로그인 화면에 입력하세요. 토큰을 터미널·로그·채팅에 출력하거나 파일을 공유하지 마세요.
 
-설정 예제는 [`.env.example`](.env.example)에 있어요. Bun은 `.env`를 읽어요. 자동 수집 모듈은 이 저장소에 포함하지 않으며, 없으면 수집 상태에 오류가 표시되지만 수동 기록은 사용할 수 있어요.
+설정 예제는 [`.env.example`](.env.example)에 있어요. Bun은 `.env`를 읽어요. 은행 내역 자동 수집은 선택 기능이고 기본은 꺼져 있어요. `LEDGER_MODULE`이 없으면 수동 기록·파일 가져오기·백업만으로 동작하고 아무것도 폴링하지 않아요.
 
 개발할 때는 두 터미널에서 실행해요.
 
@@ -104,13 +110,13 @@ export function entries() {
 | `LEDGER_TAILSCALE_HOST` | 없음 | Serve의 `호스트:포트` |
 | `LEDGER_TAILSCALE_LOGIN` | 없음 | 자동 인증을 허용할 본인 Tailscale 로그인 |
 | `LEDGER_ALLOWED_ORIGINS` | 없음 | 추가 허용 Origin, 쉼표로 구분 |
-| `LEDGER_MODULE` | `~/.local/share/ddolmeng-mode/bin/ledger.ts` | 현재 사용자 홈 기준 읽기 전용 수집 모듈 |
-| `LEDGER_WATCH_DIR` | 모듈 옆 `../state/ledger` | 원본 변경 감시 디렉터리 |
+| `LEDGER_MODULE` | 없음(수집 꺼짐) | 읽기 전용 수집 모듈 경로. [은행 내역 연결](#은행-내역-연결) 참고 |
+| `LEDGER_WATCH_DIR` | 없음(주기 수집만) | 원본 변경 감시 디렉터리. 바뀌면 곧바로 가져와요 |
 | `LEDGER_IMPORT_INTERVAL_MS` | `60000` | 자동 수집 주기(ms) |
 
 ## Mac에서 상시 실행
 
-`ops/`는 macOS LaunchAgent와 Tailscale Serve용 운영 도구예요. Bun, Tailscale, 읽기 전용 수집 모듈이 필요해요. 수집 모듈은 이 저장소에 포함하지 않아요. 도구를 실행하기 전에 `LEDGER_MODULE`과 `LEDGER_WATCH_DIR`로 위치를 지정하세요. 지정하지 않으면 위 기본 위치를 봐요. 작업 제한용 `heavy` 명령이 설치돼 있으면 빌드를 그걸로 감싸고, 없으면 바로 빌드해요.
+`ops/`는 macOS LaunchAgent와 Tailscale Serve용 운영 도구예요. Bun과 Tailscale이 필요해요. 은행 내역 수집을 켜려면 `ops/install.sh` 전에 `LEDGER_MODULE`(필요하면 `LEDGER_WATCH_DIR`도)을 지정하세요. 지정하지 않으면 수집이 꺼진 채로 설치돼요. 이후 도구를 다시 실행할 때 변수를 주지 않으면 기존 설치의 값을 그대로 써요. 작업 제한용 `heavy` 명령이 설치돼 있으면 빌드를 그걸로 감싸고, 없으면 바로 빌드해요.
 
 ```sh
 bash ops/install.sh --dry-run  # 계획·충돌 확인, 실제 설치 검증은 아님
@@ -131,8 +137,6 @@ bunx biome check .
 bun run build
 bun run test:responsive
 ```
-
-`heavy` 명령이 있는 Mac에서는 전체 테스트·빌드·반응형 검증을 각각 `heavy bun test`, `heavy bun run build`, `heavy bun run test:responsive`로 실행해요. 동시 작업 한도를 우회하지 않아요.
 
 반응형 검증은 Chrome/Chromium과 Bun.WebView를 사용해 합성 DB에서 320·375·390px의 화면·편집 시트·키패드·가로 넘침을 검사하고 자기 리소스를 정리해요. iOS의 날짜·시간 입력 폭은 Chrome에서 재현되지 않아서, Xcode iPhone 시뮬레이터가 있는 Mac에서는 `bun run test:responsive:ios`로 시뮬레이터 Safari의 편집 시트 날짜·시간 칸을 320·375·390px에서 따로 검사해요. 실제 iPhone의 설치 상태바와 네이티브 공유 시트는 데스크톱 검증과 별도로 확인해야 해요.
 
