@@ -222,7 +222,7 @@ TemplatePayload는 `{type, amount?, is_refund?, asset_id?, to_asset_id?, categor
 응답 `{items: RecurringRule[]}`(`id, template, freq, interval, start_date, end_date, last_materialized_date, active, created_at, updated_at`).
 
 ### `POST /recurring`
-본문 `template(TemplatePayload, amount 필수), freq('daily'|'weekly'|'monthly'|'yearly'), start_date`, 선택 `interval`(1~366, 기본 1), `end_date`, `active`(기본 true). 201 `RecurringRule`.
+본문 `template(TemplatePayload, amount 필수), freq('daily'|'weekly'|'monthly'|'yearly'), start_date`, 선택 `interval`(1~366, 기본 1), `end_date`, `active`(기본 true). 201 `RecurringRule`. `template.type`이 `transfer`면 `asset_id`와 다른 `to_asset_id`가 있어야 하고, 아니면 400 `invalid_input`이에요(PATCH도 같아요).
 
 ### `PATCH /recurring/:id` / `DELETE /recurring/:id`
 `:id`는 UUID예요. PATCH는 일부 수정 후 `RecurringRule`, DELETE는 `{ok: true}`. 이미 만들어진 거래는 남아요. 없으면 404.

@@ -341,7 +341,10 @@ export const RecurringRuleSchema = z.object({
 });
 export const RecurringInputSchema = z
   .object({
-    template: TemplatePayloadSchema.refine((value) => value.amount !== undefined, "amount is required"),
+    template: TemplatePayloadSchema.refine((value) => value.amount !== undefined, "amount is required").refine(
+      transferAssets,
+      { message: "A transfer needs a different to_asset_id", path: ["to_asset_id"] },
+    ),
     freq: FreqSchema,
     interval: z.number().int().min(1).max(366).default(1),
     start_date: date,

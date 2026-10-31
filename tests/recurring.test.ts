@@ -20,6 +20,30 @@ const monthly = (start_date: string, interval = 1, end_date?: string) => ({
 });
 
 describe("recurring rules", () => {
+  test("rejects a transfer rule without a different destination asset", async () => {
+    const app = setup();
+    const api = await authed(app);
+    const cash = app.db.query<{ id: string }, []>("SELECT id FROM assets WHERE kind='cash' LIMIT 1").get()?.id;
+    expect(cash).toBeString();
+    const transfer = (to_asset_id?: string) => ({
+      template: { type: "transfer", amount: 1000, asset_id: cash, ...(to_asset_id ? { to_asset_id } : {}) },
+      freq: "monthly",
+      start_date: "2026-01-01",
+    });
+    expect((await api("/api/v1/recurring", { method: "POST", body: transfer() })).status).toBe(400);
+    expect((await api("/api/v1/recurring", { method: "POST", body: transfer(cash) })).status).toBe(400);
+
+    const valid = await (await api("/api/v1/recurring", { method: "POST", body: monthly("2026-01-01") })).json();
+    const patched = await api(`/api/v1/recurring/${valid.id}`, {
+      method: "PATCH",
+      body: { template: transfer().template },
+    });
+    expect(patched.status).toBe(400);
+    expect(
+      await (await api("/api/v1/recurring/run", { method: "POST", body: { today: "2026-02-01" } })).json(),
+    ).toEqual({ created: 2 });
+  });
+
   test("materializes monthly day 31 with month-end clamping exactly once", async () => {
     const app = setup();
     const api = await authed(app);
