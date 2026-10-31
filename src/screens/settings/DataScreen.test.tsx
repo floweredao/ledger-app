@@ -15,6 +15,7 @@ const originalShareProperties = shareProperties.map(
 const previewId = "0199aaaa-0000-7000-8000-000000000001";
 const result = { inserted: 5, merged: 2, skipped: 3, hidden: 1, errors: [] };
 const status = {
+  configured: true,
   last_run_at: "2024-01-15T09:30:00+09:00",
   last_result: result,
   last_error: null,
@@ -584,6 +585,13 @@ describe("sync section and shared hooks", () => {
     await done;
     expect(request("sync/run").init.method).toBe("POST");
     expect(calls.filter((c) => c.url.endsWith("sync/status")).length).toBe(2);
+  });
+  test("says bank import is not connected instead of offering sync", async () => {
+    const original = respond;
+    respond = (url, init) => (url.endsWith("sync/status") ? json({ ...status, configured: false }) : original(url, init));
+    await mount();
+    expect(screen.getByText(/은행 내역 가져오기가 연결되지 않았어요/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "지금 동기화" })).toBeNull();
   });
   test("reports HTTP sync failures", async () => {
     syncResponse = json({ error: { code: "not_available", message: "Importer not configured" } }, 503);

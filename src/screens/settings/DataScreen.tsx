@@ -582,9 +582,13 @@ export default function DataScreen() {
           </div>
         )}
 
-        <Button onClick={handleSync} disabled={syncing || syncStatus.loading} aria-busy={syncing}>
-          {syncing ? m.syncing : c.syncNow}
-        </Button>
+        {syncStatus.data?.configured === false ? (
+          <p className="section-description">{m.syncNotConfigured}</p>
+        ) : (
+          <Button onClick={handleSync} disabled={syncing || syncStatus.loading} aria-busy={syncing}>
+            {syncing ? m.syncing : c.syncNow}
+          </Button>
+        )}
       </section>
     </div>
   );

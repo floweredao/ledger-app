@@ -240,6 +240,45 @@ describe("DailyList", () => {
     }
   });
 
+  test("manual refresh without a connected importer reloads the list and shows no error", async () => {
+    const calls: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = Object.assign(
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = String(input);
+        calls.push(`${init?.method ?? "GET"} ${url}`);
+        if (url.includes("sync/run")) {
+          return new Response(JSON.stringify({ error: { code: "not_available", message: "Importer not configured" } }), {
+            status: 503,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify(url.includes("categories") ? categories : list([])), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+      { preconnect: originalFetch.preconnect },
+    );
+
+    try {
+      navigate(`/?month=${month}`, { replace: true });
+      render(<DailyList />);
+      await screen.findByRole("button", { name: "지금 동기화" });
+      fireEvent.click(screen.getByRole("button", { name: "지금 동기화" }));
+      await waitFor(() => {
+        const posted = calls.findIndex((call) => call.startsWith("POST"));
+        expect(posted).toBeGreaterThanOrEqual(0);
+        expect(calls.slice(posted + 1).some((call) => call.startsWith("GET") && call.includes("transactions"))).toBe(
+          true,
+        );
+      });
+      expect(screen.queryByRole("alert")).toBeNull();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   test("empty month offers record creation and manual refresh runs sync before reload", async () => {
     const calls: string[] = [];
     const loaded = Promise.withResolvers<void>();
