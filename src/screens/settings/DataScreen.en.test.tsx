@@ -8,7 +8,7 @@ import { setLocale } from "../../i18n";
 import DataScreen from "./DataScreen";
 
 const realFetch = globalThis.fetch;
-const payload = { last_run_at: null, last_result: null, last_error: null, next_run_at: null };
+const payload = { configured: true, last_run_at: null, last_result: null, last_error: null, next_run_at: null };
 
 afterEach(() => {
   cleanup();
