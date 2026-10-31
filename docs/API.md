@@ -228,7 +228,7 @@ TemplatePayload는 `{type, amount?, is_refund?, asset_id?, to_asset_id?, categor
 `:id`는 UUID예요. PATCH는 일부 수정 후 `RecurringRule`, DELETE는 `{ok: true}`. 이미 만들어진 거래는 남아요. 없으면 404.
 
 ### `POST /recurring/run`
-선택 본문 `{today?: 'YYYY-MM-DD'}`. 그날까지 밀린 반복 거래를 만들어요. 응답 `{created: number}`.
+선택 본문 `{today?: 'YYYY-MM-DD'}`. 그날까지 밀린 반복 거래를 만들어요. 응답 `{created: number}`. 저장된 규칙 중 템플릿으로 거래를 만들 수 없는 것(검증이 생기기 전에 저장된 이체 규칙 등)은 그 규칙만 건너뛰고 로그에 `recurring_rule_skipped`를 남겨요. 나머지 규칙은 그대로 만들어져요. 서버 시작 때 돌는 자동 실행도 같아요.
 
 ### `GET /templates`
 응답 `{items: Template[]}`(`id, name, payload, sort, use_count, created_at, updated_at`). `sort` 오름차순, `use_count` 내림차순, `created_at`, `id` 순서예요.

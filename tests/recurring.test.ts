@@ -20,6 +20,30 @@ const monthly = (start_date: string, interval = 1, end_date?: string) => ({
 });
 
 describe("recurring rules", () => {
+  test("skips a stored rule it cannot materialize and still runs the others", async () => {
+    const app = setup();
+    const api = await authed(app);
+    const valid = await (await api("/api/v1/recurring", { method: "POST", body: monthly("2026-01-01") })).json();
+    const stamp = "2026-01-01T00:00:00+09:00";
+    app.db
+      .query(
+        `INSERT INTO recurring_rules(id,template,freq,interval,start_date,end_date,last_materialized_date,active,created_at,updated_at)
+         VALUES(?,?,'monthly',1,'2026-01-01',NULL,NULL,1,?,?)`,
+      )
+      .run(crypto.randomUUID(), JSON.stringify({ type: "transfer", amount: 1000 }), stamp, stamp);
+
+    const run = await api("/api/v1/recurring/run", { method: "POST", body: { today: "2026-02-01" } });
+    expect(run.status).toBe(200);
+    expect(await run.json()).toEqual({ created: 2 });
+    expect(
+      app.db
+        .query<{ last_materialized_date: string | null }, [string]>(
+          "SELECT last_materialized_date FROM recurring_rules WHERE id=?",
+        )
+        .get(valid.id),
+    ).toEqual({ last_materialized_date: "2026-02-01" });
+  });
+
   test("rejects a transfer rule without a different destination asset", async () => {
     const app = setup();
     const api = await authed(app);
