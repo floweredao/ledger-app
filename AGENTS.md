@@ -33,7 +33,7 @@ bun run build
 - `package.json` 버전은 오너가 승인할 때까지 `0.0.x`로 둬요.
 - 테스트와 픽스처는 합성 데이터만 써요(예: "테스트마트", "샘플카페", "홍길동"). 실제 이름, 계좌번호, 거래 내역은 넣지 않아요.
 - 런타임은 `~/Library/Application Support/ledger-app`에 있어요. LaunchAgent는 `~/Documents` 아래에서 작업 디렉터리를 열다 멈추기 때문에, 런타임 파일을 저장소 안으로 옮기지 않아요.
-- GitHub Actions 워크플로를 추가하지 않아요.
+- GitHub Actions는 `pull_request`에서만 도는 가벼운 CI(`.github/workflows/ci.yml`)만 둬요. push, 예약, 배포, 릴리스 워크플로는 오너의 승인 없이 추가하지 않아요.
 
 ## 테스트 원칙
 
