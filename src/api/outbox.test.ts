@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeEach, expect, spyOn, test } from "bun:test";
 import "fake-indexeddb/auto";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { createElement } from "react";
-import { ToastRegion } from "../components/Toast";
+import * as toastModule from "../components/Toast";
 import { storedRequest } from "../features/offline/storage";
 import {
   applyOverlay,
@@ -145,17 +145,31 @@ test("a rejected queued item is dropped with a toast and does not block its succ
     id === "malformed"
       ? new Response(JSON.stringify({ error: { code: "invalid_input", message: "금액 오류" } }), { status: 400 })
       : new Response(JSON.stringify(input), { status: 201 });
-  render(createElement(ToastRegion));
-  markNetwork(true);
-  // When
-  await act(async () => {
-    await flushOutbox();
+  // The toast store is module-level; dismiss what this test raises so later test files start clean.
+  const toastIds: number[] = [];
+  const originalToast = toastModule.toast;
+  const toastSpy = spyOn(toastModule, "toast").mockImplementation((options) => {
+    const id = originalToast(options);
+    toastIds.push(id);
+    return id;
   });
-  // Then
-  expect(sent).toEqual(["malformed", "valid-next"]);
-  expect(screen.getByRole("status").textContent).toContain("금액 오류");
-  await flushOutbox();
-  expect(sent).toHaveLength(2);
+  try {
+    render(createElement(toastModule.ToastRegion));
+    markNetwork(true);
+    // When
+    await act(async () => {
+      await flushOutbox();
+    });
+    // Then
+    expect(sent).toEqual(["malformed", "valid-next"]);
+    expect(screen.getByRole("status").textContent).toContain("금액 오류");
+    await flushOutbox();
+    expect(sent).toHaveLength(2);
+  } finally {
+    cleanup();
+    for (const id of toastIds) toastModule.dismissToast(id);
+    toastSpy.mockRestore();
+  }
 });
 
 test("server failure retains the head and prevents later requests overtaking it", async () => {
