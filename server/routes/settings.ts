@@ -21,6 +21,11 @@ settingsRoutes.patch("/settings", async (c) => {
   if (patch.default_asset_id != null && !db.query("SELECT 1 FROM assets WHERE id=?").get(patch.default_asset_id)) {
     throw new ApiError(400, "invalid_input", "Asset not found");
   }
+  for (const rule of patch.transfer_counterparties ?? []) {
+    if (!db.query("SELECT 1 FROM assets WHERE id=?").get(rule.asset_id)) {
+      throw new ApiError(400, "invalid_input", "Asset not found");
+    }
+  }
   db.transaction(() => {
     const statement = db.query(
       "INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",

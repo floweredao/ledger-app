@@ -268,6 +268,22 @@ describe("KakaoBank importer", () => {
     expect(transaction(3)).toMatchObject({ type: "income", to_asset_id: null });
   });
 
+  test("books only deposits as transfers when a counterparty rule is limited to incoming money", async () => {
+    const relative = db.query<{ id: string }, []>("SELECT id FROM assets WHERE kind='cash'").get();
+    if (!relative) throw new Error("Expected cash");
+    db.query("INSERT INTO settings(key,value) VALUES('transfer_counterparties',?)").run(
+      JSON.stringify([{ name: "홍길동", asset_id: relative.id, direction: "in" }]),
+    );
+    setEntries([
+      entry({ amount: 300000, counterparty: "홍길동", kind: "입금", balance: 395500 }),
+      entry({ id: 2, at: at(1), amount: -50000, counterparty: "토스 홍길동", kind: "자동이체(기타)", balance: 345500 }),
+    ]);
+    await importer.run();
+    const bank = db.query<{ id: string }, []>("SELECT id FROM assets WHERE external_ref='kakaobank:2222'").get();
+    expect(transaction()).toMatchObject({ type: "transfer", asset_id: relative.id, to_asset_id: bank?.id });
+    expect(transaction(1)).toMatchObject({ type: "expense", asset_id: bank?.id, to_asset_id: null });
+  });
+
   test("records check card payments on the bank account with its opening balance and newest reported state", async () => {
     setEntries([entry(), entry({ id: 2, at: at(1), amount: 1000, kind: "입금", balance: 96500 })]);
     await importer.run();

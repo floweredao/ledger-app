@@ -19,7 +19,8 @@ import { Field, Input, Select } from "../../components/Field";
 import { Skeleton } from "../../components/Skeleton";
 import { SubpageHeader } from "./SubpageHeader";
 
-type Draft = Omit<Settings, "month_start_day"> & { month_start_day: string };
+// Import rules are not edited here, so saving the form never overwrites them.
+type Draft = Omit<Settings, "month_start_day" | "transfer_counterparties"> & { month_start_day: string };
 export default function Preferences() {
   const m = useMessages(preferencesMessages);
   const c = useMessages(common);
@@ -41,10 +42,11 @@ export default function Preferences() {
   useEffect(() => {
     if (settings.data && !initialized.current) {
       initialized.current = true;
+      const { transfer_counterparties: _rules, ...data } = settings.data;
       setDraft({
-        ...settings.data,
-        language: settings.data.language ?? "system",
-        month_start_day: String(settings.data.month_start_day),
+        ...data,
+        language: data.language ?? "system",
+        month_start_day: String(data.month_start_day),
       });
     }
   }, [settings.data]);
@@ -73,7 +75,8 @@ export default function Preferences() {
     const patch: SettingsPatch = { ...draft, owner_name: draft.owner_name.trim(), month_start_day: monthStart };
     try {
       const result = await api.patchSettings(patch);
-      setDraft({ ...result, month_start_day: String(result.month_start_day) });
+      const { transfer_counterparties: _rules, ...stored } = result;
+      setDraft({ ...stored, month_start_day: String(stored.month_start_day) });
       for (const prefix of ["settings", "transactions", "stats", "budgets", "assets"]) invalidate(prefix);
       setSaved(true);
     } catch {

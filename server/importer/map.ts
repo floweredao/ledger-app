@@ -26,12 +26,16 @@ function asset(
 }
 
 /** Owner-set `transfer_counterparties` setting: transfers with these people move money to or from their asset. */
-function counterpartyAsset(db: Database, counterparty: string): string | null {
+function counterpartyAsset(db: Database, counterparty: string, incoming: boolean): string | null {
   const row = db.query<{ value: string }, []>("SELECT value FROM settings WHERE key='transfer_counterparties'").get();
-  const rules: { name: string; asset_id: string }[] = row ? JSON.parse(row.value) : [];
+  const rules: { name: string; asset_id: string; direction?: "in" | "out" | "both" }[] = row
+    ? JSON.parse(row.value)
+    : [];
   const key = merchantKey(counterparty);
   for (const rule of rules) {
     const name = merchantKey(rule.name);
+    const direction = rule.direction ?? "both";
+    if (direction !== "both" && direction !== (incoming ? "in" : "out")) continue;
     if (name !== "" && key.includes(name) && db.query("SELECT 1 FROM assets WHERE id=?").get(rule.asset_id)) {
       return rule.asset_id;
     }
@@ -86,7 +90,7 @@ export function mapEntry(db: Database, entry: Entry, previousBalance: number | n
   const other = ownTransfer
     ? asset(db, SELF_TRANSFER_REF, "내 다른 계좌", "other", 0, null)
     : /이체|입금/.test(entry.kind) && !refund
-      ? counterpartyAsset(db, entry.counterparty)
+      ? counterpartyAsset(db, entry.counterparty, entry.amount > 0)
       : null;
   if (other) {
     type = "transfer";

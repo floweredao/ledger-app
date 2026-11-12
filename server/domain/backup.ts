@@ -118,11 +118,13 @@ export function restoreBackup(db: Database, input: unknown, dataDir: string): vo
           throw new Error("Invalid budget");
       }
     }
-    SettingsSchema.parse(
-      Object.fromEntries(
+    SettingsSchema.parse({
+      // Import rules have no row until the owner sets them, so a backup may omit them.
+      transfer_counterparties: [],
+      ...Object.fromEntries(
         backup.tables.settings.map((row) => [z.string().parse(row.key), JSON.parse(z.string().parse(row.value))]),
       ),
-    );
+    });
   } catch {
     throw new ApiError(400, "invalid_request", "Invalid backup rows");
   }

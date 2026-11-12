@@ -372,6 +372,16 @@ export const TemplatePatchSchema = TemplateInputSchema.partial().strict();
 export type Template = z.infer<typeof TemplateSchema>;
 export type TemplateInput = z.infer<typeof TemplateInputSchema>;
 
+/** Import rule: 이체/입금 entries whose counterparty contains `name` move money to or from `asset_id`. */
+export const TransferCounterpartySchema = z
+  .object({
+    name: z.string().trim().min(1).max(40),
+    asset_id: id,
+    direction: z.enum(["in", "out", "both"]).default("both"),
+  })
+  .strict();
+export type TransferCounterparty = z.infer<typeof TransferCounterpartySchema>;
+
 export const SettingsSchema = z.object({
   month_start_day: z.number().int().min(1).max(28),
   owner_name: z.string().max(40),
@@ -379,6 +389,7 @@ export const SettingsSchema = z.object({
   default_asset_id: nullableId,
   ledger_view: LedgerViewSchema,
   language: LanguageSchema,
+  transfer_counterparties: z.array(TransferCounterpartySchema).max(50),
 });
 export const SettingsPatchSchema = SettingsSchema.partial().strict();
 export type Settings = z.infer<typeof SettingsSchema>;
@@ -390,6 +401,7 @@ export const DEFAULT_SETTINGS: Settings = {
   default_asset_id: null,
   ledger_view: "daily",
   language: "system",
+  transfer_counterparties: [],
 };
 
 export const SessionStateSchema = z.object({

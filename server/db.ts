@@ -251,5 +251,8 @@ export function seed(db: Database): void {
     ).run(Bun.randomUUIDv7(), now, now);
   }
   const setting = db.query("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)");
-  for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) setting.run(key, JSON.stringify(value));
+  // Import rules stay rowless until the owner sets them; reads fall back to the empty default.
+  for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+    if (key !== "transfer_counterparties") setting.run(key, JSON.stringify(value));
+  }
 }
