@@ -297,10 +297,10 @@ CSV와 XLSX는 거래 전용이에요. 월별 메모는 이 파일에 넣지 않
 ## 설정
 
 ### `GET /settings`
-응답 `{month_start_day, owner_name, theme, default_asset_id, ledger_view, language}`. 저장값이 없으면 기본값 `{1, "", "system", null, "daily", "system"}`이에요. `ledger_view`는 가계부를 열 때(`/`로 들어올 때) 처음 보여 줄 탭이에요. `language`는 화면 언어이고, `system`이면 기기·브라우저 언어를 따라가요.
+응답 `{month_start_day, owner_name, theme, default_asset_id, ledger_view, language, transfer_counterparties}`. 저장값이 없으면 기본값 `{1, "", "system", null, "daily", "system", []}`이에요. `transfer_counterparties`는 아래 동기화의 이체 상대 규칙이에요. `ledger_view`는 가계부를 열 때(`/`로 들어올 때) 처음 보여 줄 탭이에요. `language`는 화면 언어이고, `system`이면 기기·브라우저 언어를 따라가요.
 
 ### `PATCH /settings`
-위 필드의 일부. `month_start_day`는 1~28, `owner_name`은 40자까지, `theme`은 `system|light|dark`, `ledger_view`는 `daily|calendar|monthly`, `language`는 `system|ko|en`. 없는 `default_asset_id`는 400 `invalid_input`이에요. 저장은 한 트랜잭션이고, `owner_name`이 바뀌면 같은 트랜잭션 안에서 카카오뱅크 거래를 다시 분류해요(사용자가 잠근 필드는 빼고). 응답은 전체 설정이에요.
+위 필드의 일부. `month_start_day`는 1~28, `owner_name`은 40자까지, `theme`은 `system|light|dark`, `ledger_view`는 `daily|calendar|monthly`, `language`는 `system|ko|en`, `transfer_counterparties`는 `[{name, asset_id, direction?}]` 50개까지(`name`은 공백을 뺀 1~40자, `direction`은 `in|out|both`, 기본 `both`). 없는 `default_asset_id`나 규칙의 없는 `asset_id`는 400 `invalid_input`이에요. 저장은 한 트랜잭션이고, `owner_name`이 바뀌면 같은 트랜잭션 안에서 카카오뱅크 거래를 다시 분류해요(사용자가 잠근 필드는 빼고). 응답은 전체 설정이에요.
 
 ## 동기화(카카오뱅크)
 
@@ -308,7 +308,7 @@ CSV와 XLSX는 거래 전용이에요. 월별 메모는 이 파일에 넣지 않
 
 카카오뱅크 내역은 계좌마다 `카카오뱅크 입출금 (끝자리)` 자산 하나로 들어와요. 체크카드 결제와 해외결제도 별도 카드 자산을 만들지 않고 그 계좌에 기록해요. 스키마 3 마이그레이션은 이전 가져오기가 만든 체크카드 자산(`external_ref`가 `kakaobank-checkcard:`로 시작)의 거래, 즐겨찾기·반복 기록의 자산 참조, 기본 자산 설정을 연결 계좌로 옮기고 그 카드 자산을 지워요. 체크카드 잔액은 원래 연결 계좌로 계산했으므로 잔액과 통계는 바뀌지 않아요. 직접 만든 체크카드와, 카드와 그 연결 계좌 사이의 이체가 있는 카드는 그대로 두어요.
 
-가져오기 전용 설정 `transfer_counterparties`(settings 표, 값은 `[{name, asset_id}]` JSON)가 있으면, 종류에 `이체`·`입금`이 들어간 새 거래 중 거래처에 `name`이 들어간 것을 그 `asset_id` 자산과의 이체로 넣어요(입금은 그 자산 → 계좌, 출금은 계좌 → 그 자산). 본인 이름(`owner_name`) 규칙이 먼저이고, 없는 자산을 가리키는 항목은 무시해요. `GET/PATCH /settings`에는 나오지 않고, 이미 들어온 거래는 다시 분류할 때(`owner_name` 변경)만 바뀌어요.
+설정 `transfer_counterparties`(값은 `[{name, asset_id, direction}]`)가 있으면, 종류에 `이체`·`입금`이 들어간 새 거래 중 거래처에 `name`이 들어간 것을 그 `asset_id` 자산과의 이체로 넣어요(입금은 그 자산 → 계좌, 출금은 계좌 → 그 자산). `direction`이 `in`이면 입금만, `out`이면 출금만, `both`(또는 생략)면 둘 다 이체로 넣어요. 예를 들어 가족이 보내 주는 돈은 수입이 아닌 이체로 넣고, 그 가족에게 보내는 돈은 지출로 남기려면 `in`을 써요. 본인 이름(`owner_name`) 규칙이 먼저이고, 없는 자산을 가리키는 항목은 무시해요. 규칙을 바꿔도 이미 들어온 거래는 그대로이고, 다시 분류할 때(`owner_name` 변경)만 바뀌어요.
 
 ### `GET /sync/status`
 응답 `{configured, last_run_at, last_result, last_error, next_run_at}`. `configured`는 가져오기 모듈(`LEDGER_MODULE`)이 연결돼 있으면 true예요. 나머지는 기록이 없으면 각각 null. `last_result`는 마지막 실행 결과(아래 형태), `last_error`는 `"import_failed"` 또는 null이에요.

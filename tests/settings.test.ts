@@ -163,6 +163,30 @@ describe("Settings", () => {
       expect((await (await fetch("/api/v1/settings")).json()).ledger_view).toBe("calendar");
     });
 
+    it("should store transfer counterparty rules and reject ones that cannot apply", async () => {
+      const fetch = await authed(testApp);
+      expect((await (await fetch("/api/v1/settings")).json()).transfer_counterparties).toEqual([]);
+      const assets = (await (await fetch("/api/v1/assets")).json()).items as { kind: string; id: string }[];
+      const cash = assets.find((asset) => asset.kind === "cash");
+      if (!cash) throw new Error("Expected cash");
+      const rules = [
+        { name: "홍길동", asset_id: cash.id, direction: "in" },
+        { name: "김샘플", asset_id: cash.id, direction: "both" },
+      ];
+      const response = await fetch("/api/v1/settings", { method: "PATCH", body: { transfer_counterparties: rules } });
+      expect(response.status).toBe(200);
+      expect((await (await fetch("/api/v1/settings")).json()).transfer_counterparties).toEqual(rules);
+      for (const rule of [
+        { name: "홍길동", asset_id: "nonexistent-id", direction: "in" },
+        { name: " ", asset_id: cash.id, direction: "in" },
+        { name: "홍길동", asset_id: cash.id, direction: "sideways" },
+      ]) {
+        const invalid = await fetch("/api/v1/settings", { method: "PATCH", body: { transfer_counterparties: [rule] } });
+        expect(invalid.status).toBe(400);
+      }
+      expect((await (await fetch("/api/v1/settings")).json()).transfer_counterparties).toEqual(rules);
+    });
+
     it("should reject an unknown ledger_view", async () => {
       const fetch = await authed(testApp);
       const response = await fetch("/api/v1/settings", { method: "PATCH", body: { ledger_view: "weekly" } });
